@@ -52,6 +52,12 @@ def clean_symbol(text):
     m = re.search(r"\(([A-Z]+)\)", text)
     return m.group(1) if m else ""
 
+def parse_price(value):
+    try:
+        return float(value.replace("$", "").replace(",", ""))
+    except:
+        return None
+
 def fetch_gainers_from_yahoo():
     try:
         url = "https://finance.yahoo.com/gainers"
@@ -64,11 +70,11 @@ def fetch_gainers_from_yahoo():
             cols = row.find_all("td")
             if len(cols) >= 6:
                 symbol = cols[0].text.strip()
-                price = cols[2].text.strip()
+                price = parse_price(cols[2].text.strip())
                 percent = cols[4].text.strip()
                 gainers.append({
                     "symbol": symbol,
-                    "price": price,
+                    "price": price,  # ✅ 숫자 형태로 저장
                     "percent": percent,
                     "time": now,
                     "phase": get_market_phase()
