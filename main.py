@@ -25,7 +25,7 @@ def get_all_data():
 @app.route('/update_news')
 def trigger_news_update():
     try:
-        background_news_updater.update_news()
+        background_news_updater.main()
         return '✅ News updated successfully.'
     except Exception as e:
         return f'❌ Error: {str(e)}'
@@ -51,3 +51,8 @@ def delete_news():
         return jsonify({'status': 'success'})
     except Exception as e:
         return jsonify({'status': 'error', 'message': str(e)})
+
+# ⛳️ 이거 반드시 있어야 Render에서 정상 작동함
+if __name__ == '__main__':
+    port = int(os.environ.get('PORT', 10000))
+    app.run(host='0.0.0.0', port=port)
