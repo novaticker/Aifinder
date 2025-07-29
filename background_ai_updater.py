@@ -8,15 +8,20 @@ KST = pytz.timezone("Asia/Seoul")
 
 def get_market_phase():
     now = datetime.now(KST)
-    hour, minute = now.hour, now.minute
-    if hour < 17 or (hour == 17 and minute < 0):
-        return "애프터장"
-    elif 17 <= hour < 22 or (hour == 22 and minute <= 30):
-        return "프리장"
-    elif 22 < hour <= 23:
-        return "본장"
-    else:
+    hour = now.hour
+    minute = now.minute
+    time_in_minutes = hour * 60 + minute
+
+    if 540 <= time_in_minutes <= 1010:      # 09:00 ~ 16:50
         return "데이장"
+    elif 1020 <= time_in_minutes <= 1350:   # 17:00 ~ 22:30
+        return "프리장"
+    elif (1350 < time_in_minutes <= 1439) or (0 <= time_in_minutes < 300):  # 22:30 ~ 05:00
+        return "본장"
+    elif 300 <= time_in_minutes < 530:      # 05:00 ~ 08:50
+        return "애프터장"
+    else:
+        return "시간 외"
 
 def true_ai_summarize(text):
     text_lower = text.lower()
