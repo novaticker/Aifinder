@@ -11,13 +11,13 @@ def get_market_phase():
     hour, minute = now.hour, now.minute
     total_minutes = hour * 60 + minute
 
-    if 540 <= total_minutes < 1010:  # 09:00 ~ 16:50
+    if 540 <= total_minutes < 1010:
         return "day"
-    elif 1020 <= total_minutes <= 1350:  # 17:00 ~ 22:30
+    elif 1020 <= total_minutes <= 1350:
         return "pre"
-    elif total_minutes > 1350 or total_minutes < 300:  # 22:30 ~ 05:00
+    elif total_minutes > 1350 or total_minutes < 300:
         return "normal"
-    else:  # 05:00 ~ 08:50
+    else:
         return "after"
 
 def true_ai_summarize(text):
@@ -45,7 +45,6 @@ def true_ai_summarize(text):
     for key, keywords in phrases.items():
         if any(k in text_lower for k in keywords):
             return f"{company}는 {reasons[key]} 시장의 주목을 받고 있습니다."
-
     return f"{company}의 긍정적인 소식이 시장 반응을 이끌고 있습니다."
 
 def clean_symbol(text):
@@ -74,7 +73,7 @@ def fetch_gainers_from_yahoo():
                 percent = cols[4].text.strip()
                 gainers.append({
                     "symbol": symbol,
-                    "price": price,  # ✅ 숫자 형태로 저장
+                    "price": price,
                     "percent": percent,
                     "time": now,
                     "phase": get_market_phase()
@@ -121,7 +120,17 @@ def fetch_news_from_prnews():
         print(f"❌ PRNews fetch error: {e}")
     return news_list
 
-def save_data(news, gainers):
+def is_real_spike(new, old):
+    if not old:
+        return True
+    try:
+        price_jump = abs(new["price"] - old["price"]) > old["price"] * 0.04  # 4% 이상 변동
+        percent_jump = new["percent"] != old["percent"]
+        return price_jump or percent_jump
+    except:
+        return True
+
+def save_data(news, new_gainers):
     today = datetime.now(KST).strftime("%Y-%m-%d")
     if os.path.exists(NEWS_FILE):
         with open(NEWS_FILE, "r", encoding="utf-8") as f:
@@ -132,21 +141,32 @@ def save_data(news, gainers):
     if today not in data:
         data[today] = {"news": [], "gainers": [], "signals": []}
 
+    # 🔍 실시간 급등 감지
+    prev_gainers_map = {g["symbol"]: g for g in data[today].get("gainers", [])}
+    spikes = []
+
+    for new in new_gainers:
+        old = prev_gainers_map.get(new["symbol"])
+        if is_real_spike(new, old):
+            spikes.append(new)
+
+    # 💾 뉴스 누적 저장 (중복 제거)
     existing_titles = {n["title"] for n in data[today]["news"]}
     new_news = [n for n in news if n["title"] not in existing_titles]
-
     data[today]["news"].extend(new_news)
-    data[today]["gainers"] = gainers
+
+    # 🔁 gainers를 실시간 급등 감지된 종목으로 교체
+    data[today]["gainers"] = spikes
 
     with open(NEWS_FILE, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
 
 def update_news():
-    print("🤖 AI 탐색기 수집 시작")
+    print("🤖 AI 탐색기: 실시간 감지 시작")
     gainers = fetch_gainers_from_yahoo()
     news = fetch_news_from_prnews()
     save_data(news, gainers)
-    print("✅ 수집 완료")
+    print("✅ 실시간 감지 완료")
 
 if __name__ == "__main__":
     update_news()
