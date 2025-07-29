@@ -116,8 +116,8 @@
 
     async function refreshData() {
       try {
-        await fetch("/update_news"); // ✅ 서버에 뉴스 수집 요청
-        const res = await fetch("/data.json"); // ✅ 최신 데이터 다시 불러오기
+        await fetch("/update_news"); // 서버에 뉴스 수집 요청
+        const res = await fetch("/data.json"); // 전체 데이터 다시 불러오기
         const data = await res.json();
         const today = Object.keys(data).pop();
         const gainers = data[today]?.gainers || [];
@@ -148,9 +148,9 @@
         const symbol = item.symbol || "N/A";
         const price = item.price ? `$${item.price}` : "-";
         const percent = item.percent || "-";
-        const summary = item.summary || "📭 관련 뉴스 없음";
         const time = item.time || "-";
         const phase = phaseName(item.phase);
+        const summary = item.summary || `📈 AI 판단: ${symbol}에 이례적 급등 감지됨`;
 
         card.innerHTML = `
           <div class="top-line">
@@ -178,11 +178,11 @@
         const res = await fetch("/live_gainers");
         const updates = await res.json();
         updates.forEach(update => {
-          const { symbol, price, percent, time } = update;
+          const { symbol, price, percent, time, phase } = update;
           if (document.getElementById(`price-${symbol}`)) {
             document.getElementById(`price-${symbol}`).innerText = `💵 $${price}`;
             document.getElementById(`percent-${symbol}`).innerText = percent;
-            document.getElementById(`time-${symbol}`).innerText = `🕒 ${time} | ${phaseName(update.phase)}`;
+            document.getElementById(`time-${symbol}`).innerText = `🕒 ${time} | ${phaseName(phase)}`;
           }
         });
       } catch (e) {
