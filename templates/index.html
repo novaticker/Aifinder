@@ -27,15 +27,15 @@
     }
     .tabs button {
       flex: 1;
-      padding: 0.8rem;
+      padding: 1rem 0;
       background: none;
       color: #bbb;
       border: none;
-      font-size: 1rem;
+      font-size: 1.1rem;
     }
     .tabs button.active {
       color: #00e1ff;
-      border-bottom: 2px solid #00e1ff;
+      border-bottom: 3px solid #00e1ff;
       font-weight: bold;
     }
     .container {
@@ -82,9 +82,9 @@
       display: block;
       background: #00e1ff;
       border: none;
-      padding: 0.6rem 1.5rem;
+      padding: 0.8rem 2rem;
       color: #000;
-      border-radius: 8px;
+      border-radius: 10px;
       font-size: 1rem;
       font-weight: bold;
     }
@@ -92,6 +92,7 @@
 </head>
 <body>
   <header>📡 AI 종목 탐색기</header>
+
   <div class="tabs">
     <button class="active" onclick="showTab('day')">데이장</button>
     <button onclick="showTab('pre')">프리장</button>
@@ -101,7 +102,7 @@
 
   <button class="refresh" onclick="refreshData()">🔄 새로고침</button>
 
-  <div class="container" id="list"></div>
+  <div class="container" id="list">⏳ 데이터 불러오는 중...</div>
 
   <script>
     let currentTab = 'day';
@@ -116,8 +117,9 @@
 
     async function refreshData() {
       try {
-        await fetch("/update_news"); // 서버에 뉴스 수집 요청
-        const res = await fetch("/data.json"); // 전체 데이터 다시 불러오기
+        document.getElementById("list").innerHTML = "⏳ 업데이트 중...";
+        await fetch("/update_news");
+        const res = await fetch("/data.json");
         const data = await res.json();
         const today = Object.keys(data).pop();
         const gainers = data[today]?.gainers || [];
@@ -173,25 +175,11 @@
       return "";
     }
 
-    async function updateLiveData() {
-      try {
-        const res = await fetch("/live_gainers");
-        const updates = await res.json();
-        updates.forEach(update => {
-          const { symbol, price, percent, time, phase } = update;
-          if (document.getElementById(`price-${symbol}`)) {
-            document.getElementById(`price-${symbol}`).innerText = `💵 $${price}`;
-            document.getElementById(`percent-${symbol}`).innerText = percent;
-            document.getElementById(`time-${symbol}`).innerText = `🕒 ${time} | ${phaseName(phase)}`;
-          }
-        });
-      } catch (e) {
-        console.error("Live update failed:", e);
-      }
-    }
-
+    // 초기 로딩
     refreshData();
-    setInterval(updateLiveData, 1000);
+
+    // ✅ 5초마다 자동 감지 결과 반영
+    setInterval(refreshData, 5000);
   </script>
 </body>
 </html>
