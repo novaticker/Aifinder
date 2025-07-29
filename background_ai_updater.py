@@ -7,13 +7,17 @@ NEWS_FILE = "positive_news.json"
 KST = pytz.timezone("Asia/Seoul")
 
 def get_market_phase():
-    hour = datetime.now(KST).hour
-    if hour < 22:
+    now = datetime.now(KST)
+    hour = now.hour
+    minute = now.minute
+    if hour < 17 or (hour == 17 and minute < 0):
+        return "애프터장"
+    elif 17 <= hour < 22 or (hour == 22 and minute <= 30):
         return "프리장"
-    elif 22 <= hour <= 28:
+    elif 22 < hour < 30:
         return "본장"
     else:
-        return "애프터장"
+        return "데이장"
 
 def true_ai_summarize(text):
     text_lower = text.lower()
@@ -21,32 +25,27 @@ def true_ai_summarize(text):
     symbol = symbol_match.group(1) if symbol_match else ""
     company = symbol if symbol else "해당 기업"
 
-    positive_adverbs = ["긍정적인", "고무적인", "희망적인", "주목할 만한", "활발한"]
-    market_reactions = [
-        "시장 반응을 이끌 것으로 예상됩니다.",
-        "투자 심리에 영향을 줄 수 있습니다.",
-        "주가 변동에 중요한 요소로 작용할 수 있습니다.",
-        "향후 성장 기대감을 키우고 있습니다.",
-        "중장기 관점에서 주목받고 있습니다."
-    ]
+    phrases = {
+        "임상": ["fda", "approval", "phase", "clinical", "trial"],
+        "인수합병": ["merger", "acquisition", "buyout"],
+        "투자": ["investment", "funding", "raise", "partnership"],
+        "제품출시": ["launch", "release", "expansion", "product", "platform"],
+        "실적": ["earnings", "revenue", "record", "profit", "financial"]
+    }
 
-    def combine(phrase):
-        return f"{company}는 {phrase} {random.choice(market_reactions)}"
+    reasons = {
+        "임상": "긍정적인 임상 소식으로",
+        "인수합병": "M&A 발표로",
+        "투자": "투자유치 소식으로",
+        "제품출시": "제품/서비스 출시로",
+        "실적": "양호한 실적 발표로"
+    }
 
-    if any(k in text_lower for k in ["fda", "approval", "phase", "clinical", "trial"]):
-        return combine(f"{random.choice(positive_adverbs)} 임상 또는 승인 관련 소식을 발표하며")
-    elif any(k in text_lower for k in ["merger", "acquisition", "buyout"]):
-        return combine("인수합병(M&A) 관련 발표를 통해")
-    elif any(k in text_lower for k in ["investment", "funding", "raise", "partnership"]):
-        amt = re.search(r"(\$[0-9,.]+[MB]?)", text)
-        amount = amt.group(1) if amt else "자금"
-        return combine(f"{amount} 규모의 투자 또는 제휴를 진행하며")
-    elif any(k in text_lower for k in ["launch", "release", "expansion", "product", "platform"]):
-        return combine("신제품 또는 플랫폼 확장을 발표하며")
-    elif any(k in text_lower for k in ["earnings", "revenue", "record", "profit", "%", "financial"]):
-        return combine("재무 수치 또는 실적 발표를 통해")
-    else:
-        return combine("중요 발표를 하며")
+    for key, keywords in phrases.items():
+        if any(k in text_lower for k in keywords):
+            return f"{company}는 {reasons[key]} 시장의 주목을 받고 있습니다."
+
+    return f"{company}의 긍정적인 소식이 시장 반응을 이끌고 있습니다."
 
 def clean_symbol(text):
     m = re.search(r"\(([A-Z]+)\)", text)
@@ -113,11 +112,13 @@ def save_data(news, gainers):
             data = json.load(f)
     else:
         data = {}
+
     data[today] = {
         "news": news,
         "gainers": gainers,
-        "signals": []  # 향후 signal 분석 기능 추가 가능
+        "signals": []  # 향후 거래량 감지 기능 추가 시 사용
     }
+
     with open(NEWS_FILE, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
 
