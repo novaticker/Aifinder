@@ -113,5 +113,8 @@ def main():
     save_data(news, gainers)
     print("✅ 수집 및 분석 완료")
 
+def update_news():
+    main()
+
 if __name__ == "__main__":
     main()
