@@ -3,113 +3,189 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>AI 종목 탐색기</title>
+  <title>📈 AI 종목 탐색기</title>
   <style>
     body {
+      font-family: 'Pretendard', sans-serif;
       margin: 0;
-      padding: 1rem;
-      font-family: 'Apple SD Gothic Neo', sans-serif;
-      background-color: #f9fafb;
-      color: #212529;
+      padding: 0;
+      background: #121212;
+      color: #ffffff;
     }
-    h1 {
+    header {
       text-align: center;
-      font-size: 1.5rem;
-      color: #0d6efd;
-      margin-bottom: 1rem;
+      padding: 1rem;
+      background-color: #1f1f1f;
+      font-size: 1.2rem;
+      border-bottom: 1px solid #333;
     }
-    .section-title {
-      margin-top: 1.2rem;
-      font-size: 1.1rem;
+    .tabs {
+      display: flex;
+      justify-content: space-around;
+      background-color: #1a1a1a;
+      border-bottom: 1px solid #333;
+    }
+    .tabs button {
+      flex: 1;
+      padding: 0.8rem;
+      background: none;
+      color: #bbb;
+      border: none;
+      font-size: 1rem;
+    }
+    .tabs button.active {
+      color: #00e1ff;
+      border-bottom: 2px solid #00e1ff;
       font-weight: bold;
-      color: #495057;
+    }
+    .container {
+      padding: 1rem;
     }
     .card {
-      background: #fff;
-      border-radius: 10px;
-      padding: 0.8rem;
-      margin: 0.5rem 0;
-      box-shadow: 0 1px 4px rgba(0,0,0,0.05);
+      background: #1e1e1e;
+      border-radius: 12px;
+      margin-bottom: 1rem;
+      padding: 1rem;
+      box-shadow: 0 0 4px rgba(255, 255, 255, 0.05);
+    }
+    .top-line {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
     }
     .symbol {
-      font-size: 1rem;
+      font-size: 1.2rem;
       font-weight: bold;
-      color: #198754;
     }
-    .meta {
-      font-size: 0.8rem;
-      color: #6c757d;
+    .percent {
+      font-size: 1rem;
+      color: #ff4d4d;
+    }
+    .price {
+      margin-top: 0.3rem;
+      font-size: 1rem;
+      color: #ccc;
     }
     .summary {
-      font-size: 0.92rem;
-      margin-top: 0.4rem;
-      color: #212529;
-    }
-    .refresh-btn {
-      display: block;
-      margin: 1rem auto;
-      padding: 0.5rem 1.2rem;
+      margin-top: 0.8rem;
       font-size: 0.95rem;
-      background: #20c997;
-      color: white;
+      line-height: 1.4;
+      color: #ddd;
+    }
+    .info-line {
+      margin-top: 0.5rem;
+      font-size: 0.85rem;
+      color: #888;
+    }
+    .refresh {
+      margin: 1rem auto;
+      display: block;
+      background: #00e1ff;
       border: none;
-      border-radius: 20px;
-      cursor: pointer;
+      padding: 0.6rem 1.5rem;
+      color: #000;
+      border-radius: 8px;
+      font-size: 1rem;
+      font-weight: bold;
     }
   </style>
 </head>
 <body>
-  <h1>📡 AI 종목 탐색기</h1>
-  <button class="refresh-btn" onclick="manualRefresh()">🔄 새로고침</button>
+  <header>📡 AI 종목 탐색기</header>
+  <div class="tabs">
+    <button class="active" onclick="showTab('day')">데이장</button>
+    <button onclick="showTab('pre')">프리장</button>
+    <button onclick="showTab('normal')">본장</button>
+    <button onclick="showTab('after')">애프터장</button>
+  </div>
 
-  <div id="content"></div>
+  <button class="refresh" onclick="refreshData()">🔄 새로고침</button>
+
+  <div class="container" id="list"></div>
 
   <script>
-    async function fetchData() {
+    let currentTab = 'day';
+    let fullData = [];
+
+    function showTab(tab) {
+      currentTab = tab;
+      document.querySelectorAll(".tabs button").forEach(btn => btn.classList.remove("active"));
+      document.querySelector(`.tabs button[onclick="showTab('${tab}')"]`).classList.add("active");
+      renderData();
+    }
+
+    async function refreshData() {
       const res = await fetch("/data.json");
       const data = await res.json();
       const today = Object.keys(data).pop();
-      const { gainers = [] } = data[today] || {};
-      const content = document.getElementById("content");
-      content.innerHTML = "";
+      const gainers = data[today]?.gainers || [];
+      fullData = gainers.map(item => ({ ...item }));
+      renderData();
+    }
 
-      if (gainers.length === 0) {
-        content.innerHTML = "<p style='text-align:center;'>📭 감지된 급등 종목이 없습니다.</p>";
+    function renderData() {
+      const container = document.getElementById("list");
+      container.innerHTML = "";
+
+      const list = fullData.filter(item => item.phase === currentTab);
+
+      if (list.length === 0) {
+        container.innerHTML = "<p style='text-align:center; color:#666;'>📭 표시할 종목이 없습니다</p>";
         return;
       }
 
-      const phases = ["프리장", "데이장", "본장", "애프터장"];
-      phases.forEach(phase => {
-        const filtered = gainers.filter(g => g.phase === phase);
-        if (filtered.length > 0) {
-          const sectionTitle = document.createElement("div");
-          sectionTitle.className = "section-title";
-          sectionTitle.textContent = `🕒 ${phase} 급등 종목`;
-          content.appendChild(sectionTitle);
+      list.forEach(item => {
+        const card = document.createElement("div");
+        card.className = "card";
+        card.id = `card-${item.symbol}`;
 
-          filtered.forEach(g => {
-            const related = (data[today].news || []).find(n => n.symbol === g.symbol);
-            const card = document.createElement("div");
-            card.className = "card";
-            card.innerHTML = `
-              <div class="symbol">📈 ${g.symbol} (${g.change})</div>
-              ${related ? `
-                <div class="meta">📰 ${related.source} | ${related.time}</div>
-                <div class="summary">📌 ${related.summary}</div>
-              ` : `<div class="meta">📭 관련 뉴스 없음</div>`}
-            `;
-            content.appendChild(card);
-          });
-        }
+        const symbol = item.symbol || "N/A";
+        const price = item.price ? `$${item.price}` : "-";
+        const percent = item.percent || "-";
+        const summary = item.summary || "📭 관련 뉴스 없음";
+        const time = item.time || "-";
+        const phase = phaseName(item.phase);
+
+        card.innerHTML = `
+          <div class="top-line">
+            <div class="symbol">🇺🇸 ${symbol}</div>
+            <div class="percent" id="percent-${symbol}">${percent}</div>
+          </div>
+          <div class="price" id="price-${symbol}">💵 ${price}</div>
+          <div class="info-line" id="time-${symbol}">🕒 ${time} | ${phase}</div>
+          <div class="summary">${summary}</div>
+        `;
+        container.appendChild(card);
       });
     }
 
-    async function manualRefresh() {
-      await fetch("/update_news");
-      fetchData();
+    function phaseName(phase) {
+      if (phase === "day") return "데이장";
+      if (phase === "pre") return "프리장";
+      if (phase === "normal") return "본장";
+      if (phase === "after") return "애프터장";
+      return "";
     }
 
-    fetchData();
+    async function updateLiveData() {
+      try {
+        const res = await fetch("/live_gainers");
+        const updates = await res.json();
+        updates.forEach(update => {
+          const { symbol, price, percent, time } = update;
+          if (document.getElementById(`price-${symbol}`)) {
+            document.getElementById(`price-${symbol}`).innerText = `💵 $${price}`;
+            document.getElementById(`percent-${symbol}`).innerText = percent;
+            document.getElementById(`time-${symbol}`).innerText = `🕒 ${time} | ${phaseName(update.phase)}`;
+          }
+        });
+      } catch (e) {
+        console.error("Live update failed:", e);
+      }
+    }
+
+    refreshData();
+    setInterval(updateLiveData, 1000); // 1초 간격 실시간 반영
   </script>
 </body>
 </html>
