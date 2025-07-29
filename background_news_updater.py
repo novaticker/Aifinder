@@ -1,4 +1,4 @@
-# background_news_updater.py
+# background_ai_updater.py
 import requests, json, os, re, random
 from bs4 import BeautifulSoup
 from datetime import datetime
@@ -6,6 +6,15 @@ import pytz
 
 NEWS_FILE = "positive_news.json"
 KST = pytz.timezone("Asia/Seoul")
+
+def get_market_phase():
+    hour = datetime.now(KST).hour
+    if hour < 22:
+        return "프리장"
+    elif 22 <= hour <= 28:  # 22~04시 (한국 기준 본장)
+        return "본장"
+    else:
+        return "애프터장"
 
 def true_ai_summarize(text):
     text_lower = text.lower()
@@ -37,32 +46,28 @@ def true_ai_summarize(text):
         return combine("신제품 또는 플랫폼 확장을 발표하며")
     elif any(k in text_lower for k in ["earnings", "revenue", "record", "profit", "%", "financial"]):
         return combine("재무 수치 또는 실적 발표를 통해")
-    elif any(k in text_lower for k in ["award", "event", "presentation", "expo"]):
-        return combine("공식 발표 또는 수상 소식을 전달하며")
-    elif any(k in text_lower for k in ["contract", "agreement", "deal", "signed"]):
-        return combine("계약 또는 협약 체결을 발표하며")
     else:
-        general = [
-            "중요한 기업 활동을 발표하며",
-            "새로운 전략을 제시하며",
-            "시장과 투자자들에게 영향을 줄 수 있는 소식을 발표하며",
-            "변화의 신호로 해석될 수 있는 뉴스를 전달하며"
-        ]
-        return combine(random.choice(general))
+        return combine("중요 발표를 하며")
 
 def clean_symbol(text):
     m = re.search(r"\(([A-Z]+)\)", text)
     return m.group(1) if m else ""
 
-def fetch_toss_gainers():
-    url = "https://tossinvest.com/screener"
+def fetch_gainers_from_yahoo():
+    url = "https://finance.yahoo.com/gainers"
     res = requests.get(url, headers={"User-Agent": "Mozilla/5.0"})
     soup = BeautifulSoup(res.text, "html.parser")
     gainers = []
-    for tag in soup.select("div > strong"):
-        symbol = tag.text.strip()
-        if len(symbol) <= 5 and symbol.isupper():
-            gainers.append({"symbol": symbol})
+    for row in soup.select("table tbody tr"):
+        cols = row.find_all("td")
+        if len(cols) >= 3:
+            symbol = cols[0].text.strip()
+            change = cols[2].text.strip()
+            gainers.append({
+                "symbol": symbol,
+                "change": change,
+                "phase": get_market_phase()
+            })
     return gainers
 
 def fetch_news_from_prnews():
@@ -106,15 +111,12 @@ def save_data(news, gainers):
     with open(NEWS_FILE, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
 
-def main():
-    print("🤖 진짜 AI 탐색기 작동 중...")
-    gainers = fetch_toss_gainers()
+def update_news():
+    print("🤖 AI 탐색기 수집 시작")
+    gainers = fetch_gainers_from_yahoo()
     news = fetch_news_from_prnews()
     save_data(news, gainers)
-    print("✅ 수집 및 분석 완료")
-
-def update_news():
-    main()
+    print("✅ 수집 완료")
 
 if __name__ == "__main__":
-    main()
+    update_news()
