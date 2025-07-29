@@ -29,9 +29,13 @@ def get_live_gainers():
     with open(NEWS_FILE, "r", encoding="utf-8") as f:
         data = json.load(f)
 
-    today = max(data.keys())
-    gainers = data[today].get("gainers", [])
-    return jsonify(gainers)
+    today = max(data.keys(), default=None)
+    if not today:
+        return jsonify([])
+
+    # 실시간 감지된 급등 종목 리스트 반환
+    live = data[today].get("gainers", [])
+    return jsonify(live)
 
 @app.route("/update_news")
 def trigger_update():
@@ -70,3 +74,6 @@ def delete_news():
             return jsonify({"status": "error", "message": "Date not found"})
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)})
+
+if __name__ == "__main__":
+    app.run(debug=True)
