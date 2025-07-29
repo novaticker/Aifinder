@@ -108,11 +108,7 @@ def fetch_news_from_prnews():
 
 def save_data(news, gainers):
     today = datetime.now(KST).strftime("%Y-%m-%d")
-    if os.path.exists(NEWS_FILE):
-        with open(NEWS_FILE, "r", encoding="utf-8") as f:
-            data = json.load(f)
-    else:
-        data = {}
+    data = {}  # ✅ 기존 파일 덮어쓰기 방식으로 변경
     data[today] = {
         "news": news,
         "gainers": gainers,
