@@ -1,25 +1,28 @@
-from flask import Flask, jsonify, request
+from flask import Flask, jsonify, request, send_from_directory
 from flask_cors import CORS
 import os
 import json
-import background_ai_updater  # 같은 폴더에 있어야 함
+import background_ai_updater  # 같은 폴더에 위치해야 함
 
-app = Flask(__name__)
+app = Flask(__name__, static_folder='static')
 CORS(app)
 
 NEWS_FILE = "positive_news.json"
 
 @app.route("/")
 def home():
-    return "✅ NovaTicker AI Finder is running."
+    return send_from_directory('static', 'index.html')  # 기본 홈페이지로 index.html 보여줌
 
 @app.route("/data.json")
 def get_all_data():
     if not os.path.exists(NEWS_FILE):
         return jsonify({})
-    with open(NEWS_FILE, "r", encoding="utf-8") as f:
-        data = json.load(f)
-    return jsonify(data)
+    try:
+        with open(NEWS_FILE, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        return jsonify(data)
+    except json.JSONDecodeError:
+        return jsonify({})  # JSON 에러 방지
 
 @app.route("/update_news")
 def trigger_update():
@@ -58,3 +61,6 @@ def delete_news():
             return jsonify({"status": "error", "message": "Date not found"})
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)})
+
+if __name__ == "__main__":
+    app.run(debug=True)
