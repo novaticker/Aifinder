@@ -1,58 +1,61 @@
+# main.py
 from flask import Flask, jsonify, request
 from flask_cors import CORS
 import os
 import json
-import background_news_updater  # 같은 디렉토리에 있어야 함
+import background_ai_updater  # 같은 폴더에 있어야 함
 
 app = Flask(__name__)
 CORS(app)
 
-NEWS_FILE = 'positive_news.json'
+NEWS_FILE = "positive_news.json"
 
-@app.route('/')
+@app.route("/")
 def home():
-    return '✅ NovaTicker AI Finder is running.'
+    return "✅ NovaTicker AI Finder is running."
 
-@app.route('/data.json')
+@app.route("/data.json")
 def get_all_data():
-    try:
-        with open(NEWS_FILE, 'r', encoding='utf-8') as f:
-            data = json.load(f)
-        return jsonify(data)
-    except:
+    if not os.path.exists(NEWS_FILE):
         return jsonify({})
+    with open(NEWS_FILE, "r", encoding="utf-8") as f:
+        data = json.load(f)
+    return jsonify(data)
 
-@app.route('/update_news')
-def trigger_news_update():
+@app.route("/update_news")
+def trigger_update():
     try:
-        background_news_updater.main()
-        return '✅ News updated successfully.'
+        background_ai_updater.update_news()
+        return "✅ News updated successfully."
     except Exception as e:
-        return f'❌ Error: {str(e)}'
+        return f"❌ Error: {str(e)}"
 
-@app.route('/delete_news', methods=['POST'])
+@app.route("/delete_news", methods=["POST"])
 def delete_news():
     try:
-        symbol = request.json.get('symbol')
-        date = request.json.get('date')
-        title = request.json.get('title')
+        symbol = request.json.get("symbol")
+        title = request.json.get("title")
+        date = request.json.get("date")
 
-        with open(NEWS_FILE, 'r', encoding='utf-8') as f:
+        if not all([symbol, title, date]):
+            return jsonify({"status": "error", "message": "Missing parameters"})
+
+        with open(NEWS_FILE, "r", encoding="utf-8") as f:
             data = json.load(f)
 
-        if date in data:
-            data[date] = [item for item in data[date] if not (item['symbol'] == symbol and item['title'] == title)]
-            if not data[date]:
-                del data[date]
-
-        with open(NEWS_FILE, 'w', encoding='utf-8') as f:
-            json.dump(data, f, ensure_ascii=False, indent=2)
-
-        return jsonify({'status': 'success'})
+        if date in data and "news" in data[date]:
+            original = len(data[date]["news"])
+            data[date]["news"] = [
+                item for item in data[date]["news"]
+                if not (item.get("symbol") == symbol and item.get("title") == title)
+            ]
+            if len(data[date]["news"]) < original:
+                with open(NEWS_FILE, "w", encoding="utf-8") as f:
+                    json.dump(data, f, ensure_ascii=False, indent=2)
+                return jsonify({"status": "success"})
+            else:
+                return jsonify({"status": "error", "message": "Item not found"})
+        else:
+            return jsonify({"status": "error", "message": "Date not found"})
     except Exception as e:
-        return jsonify({'status': 'error', 'message': str(e)})
-
-# ⛳️ 이거 반드시 있어야 Render에서 정상 작동함
-if __name__ == '__main__':
-    port = int(os.environ.get('PORT', 10000))
-    app.run(host='0.0.0.0', port=port)
+        return jsonify({"status": "error", "message": str(e)})
