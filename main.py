@@ -17,33 +17,38 @@ def home():
 def get_all_data():
     if not os.path.exists(NEWS_FILE):
         return jsonify({})
-    with open(NEWS_FILE, "r", encoding="utf-8") as f:
-        data = json.load(f)
-    return jsonify(data)
+    try:
+        with open(NEWS_FILE, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        return jsonify(data)
+    except Exception as e:
+        return jsonify({"error": str(e)})
 
 @app.route("/live_gainers")
 def get_live_gainers():
     if not os.path.exists(NEWS_FILE):
         return jsonify([])
 
-    with open(NEWS_FILE, "r", encoding="utf-8") as f:
-        data = json.load(f)
+    try:
+        with open(NEWS_FILE, "r", encoding="utf-8") as f:
+            data = json.load(f)
 
-    today = max(data.keys(), default=None)
-    if not today:
-        return jsonify([])
+        today = max(data.keys(), default=None)
+        if not today:
+            return jsonify([])
 
-    # 실시간 감지된 급등 종목 리스트 반환
-    live = data[today].get("gainers", [])
-    return jsonify(live)
+        live = data[today].get("gainers", [])
+        return jsonify(live)
+    except Exception as e:
+        return jsonify({"error": str(e)})
 
 @app.route("/update_news")
 def trigger_update():
     try:
-        background_ai_updater.update_news()
-        return "✅ News updated successfully."
+        background_ai_updater.update_news()  # AI 기반 뉴스 + 급등 감지
+        return "✅ AI 업데이트 완료"
     except Exception as e:
-        return f"❌ Error: {str(e)}"
+        return f"❌ AI 업데이트 실패: {str(e)}"
 
 @app.route("/delete_news", methods=["POST"])
 def delete_news():
@@ -76,4 +81,4 @@ def delete_news():
         return jsonify({"status": "error", "message": str(e)})
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    app.run(debug=False, host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
