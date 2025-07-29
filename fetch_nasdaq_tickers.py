@@ -1,22 +1,23 @@
 import requests
-import json
+import csv
 
 def fetch_nasdaq_tickers():
-    url = "https://api.nasdaq.com/api/screener/stocks?exchange=nasdaq&download=true"
-    headers = {
-        "User-Agent": "Mozilla/5.0",
-        "Accept": "application/json",
-    }
+    url = "https://ftp.nasdaqtrader.com/dynamic/SymDir/nasdaqlisted.txt"
+    response = requests.get(url)
+    lines = response.text.strip().split('\n')
 
-    try:
-        res = requests.get(url, headers=headers)
-        data = res.json()
-        tickers = [row["symbol"] for row in data["data"]["rows"] if row["symbol"].isalpha()]
-        with open("nasdaq_tickers.json", "w") as f:
-            json.dump(tickers, f, indent=2)
-        print(f"✅ 총 {len(tickers)}개 나스닥 종목 저장 완료.")
-    except Exception as e:
-        print("❌ 나스닥 종목 수집 실패:", e)
+    tickers = []
+    for line in csv.reader(lines[1:], delimiter='|'):
+        symbol = line[0]
+        if symbol and symbol != 'File Creation Time':
+            tickers.append(symbol)
+
+    # 저장
+    with open("nasdaq_symbols.json", "w", encoding="utf-8") as f:
+        import json
+        json.dump(tickers, f, ensure_ascii=False, indent=2)
+
+    print(f"✅ 총 {len(tickers)}개 나스닥 종목 저장 완료")
 
 if __name__ == "__main__":
     fetch_nasdaq_tickers()
