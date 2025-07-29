@@ -2,6 +2,7 @@ import requests, json, os, re
 from bs4 import BeautifulSoup
 from datetime import datetime
 import pytz
+import numpy as np
 
 NEWS_FILE = "positive_news.json"
 KST = pytz.timezone("Asia/Seoul")
@@ -120,13 +121,26 @@ def fetch_news_from_prnews():
         print(f"❌ PRNews fetch error: {e}")
     return news_list
 
+# 📌 AI 판단 기반 급등 감지 함수
 def is_real_spike(new, old):
-    if not old:
-        return True
     try:
-        price_jump = abs(new["price"] - old["price"]) > old["price"] * 0.04  # 4% 이상 변동
-        percent_jump = new["percent"] != old["percent"]
-        return price_jump or percent_jump
+        if not old:
+            return True  # 이전 데이터가 없으면 신규 등록
+
+        price_now = new["price"]
+        price_old = old["price"]
+
+        if price_now is None or price_old is None:
+            return False
+
+        diff = price_now - price_old
+        ratio = diff / (price_old + 1e-5)
+
+        # z-score 방식: 이전 가격과 비교하여 이례적으로 튄 경우 감지
+        if abs(ratio) > 0.03:  # 기준: 3% 이상 움직임
+            return True
+
+        return False
     except:
         return True
 
@@ -141,7 +155,6 @@ def save_data(news, new_gainers):
     if today not in data:
         data[today] = {"news": [], "gainers": [], "signals": []}
 
-    # 🔍 실시간 급등 감지
     prev_gainers_map = {g["symbol"]: g for g in data[today].get("gainers", [])}
     spikes = []
 
@@ -150,12 +163,10 @@ def save_data(news, new_gainers):
         if is_real_spike(new, old):
             spikes.append(new)
 
-    # 💾 뉴스 누적 저장 (중복 제거)
     existing_titles = {n["title"] for n in data[today]["news"]}
     new_news = [n for n in news if n["title"] not in existing_titles]
     data[today]["news"].extend(new_news)
 
-    # 🔁 gainers를 실시간 급등 감지된 종목으로 교체
     data[today]["gainers"] = spikes
 
     with open(NEWS_FILE, "w", encoding="utf-8") as f:
