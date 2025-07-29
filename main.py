@@ -21,6 +21,18 @@ def get_all_data():
         data = json.load(f)
     return jsonify(data)
 
+@app.route("/live_gainers")
+def get_live_gainers():
+    if not os.path.exists(NEWS_FILE):
+        return jsonify([])
+
+    with open(NEWS_FILE, "r", encoding="utf-8") as f:
+        data = json.load(f)
+
+    today = max(data.keys())
+    gainers = data[today].get("gainers", [])
+    return jsonify(gainers)
+
 @app.route("/update_news")
 def trigger_update():
     try:
