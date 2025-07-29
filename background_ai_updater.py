@@ -1,17 +1,19 @@
-import requests, json, os, re
+import requests, json, os, re, time, threading
 from bs4 import BeautifulSoup
 from datetime import datetime
 import pytz
-import numpy as np
+import websocket
+import traceback
 
 NEWS_FILE = "positive_news.json"
 KST = pytz.timezone("Asia/Seoul")
+FINNHUB_TOKEN = "d1tic89r01qth6plf2kgd1tic89r01qth6plf2l0"
+WATCHLIST = ["NVDA", "TSLA", "AAPL", "AMZN", "AMD", "MARA", "RIOT", "AI", "BIDU", "PLTR"]
 
 def get_market_phase():
     now = datetime.now(KST)
     hour, minute = now.hour, now.minute
     total_minutes = hour * 60 + minute
-
     if 540 <= total_minutes < 1010:
         return "day"
     elif 1020 <= total_minutes <= 1350:
@@ -52,38 +54,6 @@ def clean_symbol(text):
     m = re.search(r"\(([A-Z]+)\)", text)
     return m.group(1) if m else ""
 
-def parse_price(value):
-    try:
-        return float(value.replace("$", "").replace(",", ""))
-    except:
-        return None
-
-def fetch_gainers_from_yahoo():
-    try:
-        url = "https://finance.yahoo.com/gainers"
-        res = requests.get(url, headers={"User-Agent": "Mozilla/5.0"}, timeout=10)
-        soup = BeautifulSoup(res.text, "html.parser")
-        gainers = []
-        now = datetime.now(KST).strftime("%H:%M")
-
-        for row in soup.select("table tbody tr"):
-            cols = row.find_all("td")
-            if len(cols) >= 6:
-                symbol = cols[0].text.strip()
-                price = parse_price(cols[2].text.strip())
-                percent = cols[4].text.strip()
-                gainers.append({
-                    "symbol": symbol,
-                    "price": price,
-                    "percent": percent,
-                    "time": now,
-                    "phase": get_market_phase()
-                })
-        return gainers
-    except Exception as e:
-        print(f"❌ Yahoo Gainers Error: {e}")
-        return []
-
 def fetch_news_from_prnews():
     news_list = []
     try:
@@ -121,30 +91,7 @@ def fetch_news_from_prnews():
         print(f"❌ PRNews fetch error: {e}")
     return news_list
 
-# 📌 AI 판단 기반 급등 감지 함수
-def is_real_spike(new, old):
-    try:
-        if not old:
-            return True  # 이전 데이터가 없으면 신규 등록
-
-        price_now = new["price"]
-        price_old = old["price"]
-
-        if price_now is None or price_old is None:
-            return False
-
-        diff = price_now - price_old
-        ratio = diff / (price_old + 1e-5)
-
-        # z-score 방식: 이전 가격과 비교하여 이례적으로 튄 경우 감지
-        if abs(ratio) > 0.03:  # 기준: 3% 이상 움직임
-            return True
-
-        return False
-    except:
-        return True
-
-def save_data(news, new_gainers):
+def save_data(news, gainers):
     today = datetime.now(KST).strftime("%Y-%m-%d")
     if os.path.exists(NEWS_FILE):
         with open(NEWS_FILE, "r", encoding="utf-8") as f:
@@ -155,29 +102,92 @@ def save_data(news, new_gainers):
     if today not in data:
         data[today] = {"news": [], "gainers": [], "signals": []}
 
-    prev_gainers_map = {g["symbol"]: g for g in data[today].get("gainers", [])}
-    spikes = []
-
-    for new in new_gainers:
-        old = prev_gainers_map.get(new["symbol"])
-        if is_real_spike(new, old):
-            spikes.append(new)
-
+    # 뉴스 중복 제거 후 추가
     existing_titles = {n["title"] for n in data[today]["news"]}
     new_news = [n for n in news if n["title"] not in existing_titles]
     data[today]["news"].extend(new_news)
 
-    data[today]["gainers"] = spikes
+    # gainers 실시간 반영
+    symbols_in_today = {g["symbol"] for g in data[today]["gainers"]}
+    for g in gainers:
+        if g["symbol"] not in symbols_in_today:
+            data[today]["gainers"].append(g)
 
     with open(NEWS_FILE, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
 
-def update_news():
-    print("🤖 AI 탐색기: 실시간 감지 시작")
-    gainers = fetch_gainers_from_yahoo()
-    news = fetch_news_from_prnews()
-    save_data(news, gainers)
-    print("✅ 실시간 감지 완료")
+# ✅ 실시간 가격 수신 핸들러
+price_cache = {}
 
+def on_message(ws, message):
+    try:
+        msg = json.loads(message)
+        if "data" not in msg:
+            return
+        now = datetime.now(KST).strftime("%H:%M")
+        phase = get_market_phase()
+        new_entries = []
+
+        for item in msg["data"]:
+            s = item["s"]
+            p = item["p"]
+            old_price = price_cache.get(s)
+
+            # 가격 변화율 계산
+            if old_price:
+                change = (p - old_price) / old_price
+                if abs(change) >= 0.03:  # 3% 이상 튀었을 때
+                    percent_str = f"{change*100:+.2f}%"
+                    new_entries.append({
+                        "symbol": s,
+                        "price": p,
+                        "percent": percent_str,
+                        "time": now,
+                        "phase": phase
+                    })
+            price_cache[s] = p
+
+        if new_entries:
+            news = fetch_news_from_prnews()
+            save_data(news, new_entries)
+            print(f"🚀 급등 감지: {', '.join(e['symbol'] for e in new_entries)}")
+    except Exception as e:
+        print("❌ on_message error:", e)
+        traceback.print_exc()
+
+def on_error(ws, error):
+    print("WebSocket Error:", error)
+
+def on_close(ws, close_status_code, close_msg):
+    print("❌ WebSocket closed. Reconnecting in 5s...")
+    time.sleep(5)
+    start_websocket()  # 재연결
+
+def on_open(ws):
+    print("🔗 WebSocket 연결됨")
+    for symbol in WATCHLIST:
+        ws.send(json.dumps({"type": "subscribe", "symbol": symbol}))
+
+def start_websocket():
+    url = f"wss://ws.finnhub.io?token={FINNHUB_TOKEN}"
+    ws = websocket.WebSocketApp(url,
+        on_open=on_open,
+        on_message=on_message,
+        on_error=on_error,
+        on_close=on_close)
+    wst = threading.Thread(target=ws.run_forever)
+    wst.daemon = True
+    wst.start()
+
+def update_news():
+    print("📡 초기 뉴스 수집 시작")
+    news = fetch_news_from_prnews()
+    save_data(news, [])
+    print("✅ 초기 뉴스 수집 완료")
+
+# ▶️ 실행 시작
 if __name__ == "__main__":
     update_news()
+    start_websocket()
+    while True:
+        time.sleep(30)
