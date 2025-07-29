@@ -3,103 +3,70 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>NovaTicker AI 탐색기</title>
+  <title>📊 AI 급등주 탐색기</title>
   <style>
     body {
       margin: 0;
-      padding: 0.5rem;
+      padding: 1rem;
       font-family: 'Apple SD Gothic Neo', sans-serif;
-      background-color: #f8f9fa;
+      background: #f4f6f9;
       color: #333;
     }
     h1 {
       text-align: center;
-      font-size: 1.4rem;
+      font-size: 1.5rem;
       color: #0d6efd;
-    }
-    .tabs, .filters {
-      display: flex;
-      flex-wrap: wrap;
-      justify-content: center;
-      gap: 0.3rem;
-      margin: 0.5rem 0;
-    }
-    .tab, .filter {
-      font-size: 0.85rem;
-      padding: 0.3rem 0.6rem;
-      border: none;
-      border-radius: 20px;
-      background: #dee2e6;
-      color: #333;
-      cursor: pointer;
-    }
-    .tab.active, .filter.active {
-      background: #0d6efd;
-      color: white;
+      margin-bottom: 1rem;
     }
     .card {
       background: white;
-      border-radius: 8px;
-      padding: 0.7rem;
-      margin: 0.5rem 0;
-      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+      border-radius: 10px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+      padding: 1rem;
+      margin-bottom: 1rem;
     }
     .symbol {
+      font-size: 1.1rem;
       font-weight: bold;
       color: #198754;
+      margin-bottom: 0.3rem;
+    }
+    .summary {
+      font-size: 0.95rem;
+      margin-bottom: 0.3rem;
     }
     .meta {
       font-size: 0.75rem;
-      color: #888;
-    }
-    .summary {
-      font-size: 0.9rem;
-      margin: 0.4rem 0;
+      color: #666;
     }
     .delete-btn {
       float: right;
       color: red;
       cursor: pointer;
+      font-size: 0.9rem;
     }
     .refresh-btn {
       display: block;
-      margin: 0.8rem auto;
-      padding: 0.5rem 1.2rem;
-      font-size: 0.9rem;
+      margin: 1rem auto;
+      padding: 0.6rem 1.5rem;
+      font-size: 0.95rem;
       background: #20c997;
       color: white;
       border: none;
-      border-radius: 20px;
+      border-radius: 25px;
       cursor: pointer;
     }
   </style>
 </head>
 <body>
-  <h1>📈 NovaTicker AI 탐색기</h1>
+  <h1>🤖 AI 급등주 탐색기</h1>
 
-  <div class="tabs">
-    <button class="tab active" data-tab="gainers">급등 종목</button>
-    <button class="tab" data-tab="signals">급등 조짐</button>
-    <button class="tab" data-tab="news">호재 뉴스</button>
-  </div>
-
-  <div class="filters" id="filters" style="display: none;">
-    <button class="filter" data-key="fda">FDA/임상</button>
-    <button class="filter" data-key="bio">바이오</button>
-    <button class="filter" data-key="rebound">반등</button>
-    <button class="filter" data-key="hot">급등 이슈</button>
-    <button class="filter" data-key="all">초기화</button>
-  </div>
-
-  <button class="refresh-btn" onclick="manualRefresh()">🔄 뉴스 수동 새로고침</button>
+  <button class="refresh-btn" onclick="manualRefresh()">🔄 데이터 새로고침</button>
 
   <div id="content"></div>
 
   <script>
     let rawData = {};
-    let activeTab = 'gainers';
-    const contentDiv = document.getElementById("content");
-    const filtersDiv = document.getElementById("filters");
 
     async function fetchData() {
       const res = await fetch('/data.json');
@@ -108,64 +75,27 @@
     }
 
     function renderContent() {
+      const contentDiv = document.getElementById("content");
       contentDiv.innerHTML = '';
       const today = Object.keys(rawData).pop();
       const section = rawData[today] || {};
-      const dataList = section[activeTab] || [];
+      const gainers = section.gainers || [];
 
-      filtersDiv.style.display = activeTab === "news" ? "flex" : "none";
-
-      dataList.forEach(item => {
+      gainers.forEach(item => {
         const card = document.createElement("div");
         card.className = "card";
-        const symbol = item.symbol ? `🧾 ${item.symbol}` : '';
-        const time = item.time ? `🕒 ${item.time}` : '';
-        const source = item.source ? `📰 ${item.source}` : '';
-        const meta = `${symbol} ${time} ${source}`;
+
         const deleteBtn = `<span class="delete-btn" onclick="deleteNews('${item.symbol}', '${today}', \`${item.title}\`)">🗑️</span>`;
 
         card.innerHTML = `
           ${deleteBtn}
-          <div class="meta">${meta}</div>
-          <div class="summary">📌 ${item.summary}</div>
-          <a href="${item.link}" target="_blank">${item.title}${item.title.includes('⭐') ? '' : (item.symbol ? ' ⭐' : '')}</a>
+          <div class="symbol">🧾 ${item.symbol}</div>
+          <div class="summary">💡 AI 분석: ${item.summary}</div>
+          <div class="meta">🕒 ${item.time} | 📰 ${item.source}</div>
         `;
         contentDiv.appendChild(card);
       });
     }
-
-    document.querySelectorAll('.tab').forEach(btn => {
-      btn.onclick = () => {
-        document.querySelectorAll('.tab').forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
-        activeTab = btn.dataset.tab;
-        renderContent();
-      };
-    });
-
-    document.querySelectorAll('.filter').forEach(f => {
-      f.onclick = () => {
-        document.querySelectorAll('.filter').forEach(b => b.classList.remove('active'));
-        f.classList.add('active');
-        const key = f.dataset.key;
-        if (key === "all") return renderContent();
-
-        const filtered = rawData[Object.keys(rawData).pop()][activeTab].filter(n =>
-          (n.summary + n.title).toLowerCase().includes(key)
-        );
-        contentDiv.innerHTML = '';
-        filtered.forEach(item => {
-          const card = document.createElement("div");
-          card.className = "card";
-          card.innerHTML = `
-            <div class="meta">🧾 ${item.symbol} 🕒 ${item.time} 📰 ${item.source}</div>
-            <div class="summary">📌 ${item.summary}</div>
-            <a href="${item.link}" target="_blank">${item.title}</a>
-          `;
-          contentDiv.appendChild(card);
-        });
-      };
-    });
 
     async function manualRefresh() {
       await fetch('/update_news');
@@ -179,7 +109,7 @@
         body: JSON.stringify({ symbol, date, title })
       });
       const result = await res.json();
-      alert(result.status === 'success' ? "🗑️ 삭제됨" : "삭제 실패");
+      alert(result.status === 'success' ? "삭제됨" : "삭제 실패");
       if (result.status === 'success') fetchData();
     }
 
