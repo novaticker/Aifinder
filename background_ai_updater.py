@@ -8,20 +8,15 @@ KST = pytz.timezone("Asia/Seoul")
 
 def get_market_phase():
     now = datetime.now(KST)
-    hour = now.hour
-    minute = now.minute
-    time_in_minutes = hour * 60 + minute
-
-    if 540 <= time_in_minutes <= 1010:      # 09:00 ~ 16:50
-        return "데이장"
-    elif 1020 <= time_in_minutes <= 1350:   # 17:00 ~ 22:30
-        return "프리장"
-    elif (1350 < time_in_minutes <= 1439) or (0 <= time_in_minutes < 300):  # 22:30 ~ 05:00
-        return "본장"
-    elif 300 <= time_in_minutes < 530:      # 05:00 ~ 08:50
-        return "애프터장"
+    hour, minute = now.hour, now.minute
+    if hour < 17 or (hour == 17 and minute < 0):
+        return "after"
+    elif 17 <= hour < 22 or (hour == 22 and minute <= 30):
+        return "pre"
+    elif 22 < hour or (hour == 0 or hour < 5):
+        return "normal"
     else:
-        return "시간 외"
+        return "day"
 
 def true_ai_summarize(text):
     text_lower = text.lower()
@@ -61,14 +56,19 @@ def fetch_gainers_from_yahoo():
         res = requests.get(url, headers={"User-Agent": "Mozilla/5.0"}, timeout=10)
         soup = BeautifulSoup(res.text, "html.parser")
         gainers = []
+        now = datetime.now(KST).strftime("%H:%M")
+
         for row in soup.select("table tbody tr"):
             cols = row.find_all("td")
-            if len(cols) >= 3:
+            if len(cols) >= 6:
                 symbol = cols[0].text.strip()
-                change = cols[2].text.strip()
+                price = cols[2].text.strip()
+                percent = cols[4].text.strip()
                 gainers.append({
                     "symbol": symbol,
-                    "change": change,
+                    "price": price,
+                    "percent": percent,
+                    "time": now,
                     "phase": get_market_phase()
                 })
         return gainers
@@ -93,7 +93,7 @@ def fetch_news_from_prnews():
                 continue
             symbol = clean_symbol(title)
             if not symbol:
-                continue  # 종목이 명확하지 않으면 제외
+                continue
 
             link = "https://www.prnewswire.com" + link_tag
             summary = true_ai_summarize(title)
@@ -124,12 +124,11 @@ def save_data(news, gainers):
     if today not in data:
         data[today] = {"news": [], "gainers": [], "signals": []}
 
-    # 기존 뉴스 중복 제거
     existing_titles = {n["title"] for n in data[today]["news"]}
     new_news = [n for n in news if n["title"] not in existing_titles]
 
     data[today]["news"].extend(new_news)
-    data[today]["gainers"] = gainers  # 매번 갱신
+    data[today]["gainers"] = gainers  # 최신 gainers 덮어쓰기
 
     with open(NEWS_FILE, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
