@@ -115,12 +115,18 @@
     }
 
     async function refreshData() {
-      const res = await fetch("/data.json");
-      const data = await res.json();
-      const today = Object.keys(data).pop();
-      const gainers = data[today]?.gainers || [];
-      fullData = gainers.map(item => ({ ...item }));
-      renderData();
+      try {
+        await fetch("/update_news"); // ✅ 서버에 뉴스 수집 요청
+        const res = await fetch("/data.json"); // ✅ 최신 데이터 다시 불러오기
+        const data = await res.json();
+        const today = Object.keys(data).pop();
+        const gainers = data[today]?.gainers || [];
+        fullData = gainers.map(item => ({ ...item }));
+        renderData();
+      } catch (e) {
+        alert("❌ 새로고침 실패");
+        console.error(e);
+      }
     }
 
     function renderData() {
@@ -185,7 +191,7 @@
     }
 
     refreshData();
-    setInterval(updateLiveData, 1000); // 1초 간격 실시간 반영
+    setInterval(updateLiveData, 1000);
   </script>
 </body>
 </html>
