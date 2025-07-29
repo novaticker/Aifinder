@@ -9,14 +9,16 @@ KST = pytz.timezone("Asia/Seoul")
 def get_market_phase():
     now = datetime.now(KST)
     hour, minute = now.hour, now.minute
-    if hour < 17 or (hour == 17 and minute < 0):
-        return "after"
-    elif 17 <= hour < 22 or (hour == 22 and minute <= 30):
-        return "pre"
-    elif 22 < hour or (hour == 0 or hour < 5):
-        return "normal"
-    else:
+    total_minutes = hour * 60 + minute
+
+    if 540 <= total_minutes < 1010:  # 09:00 ~ 16:50
         return "day"
+    elif 1020 <= total_minutes <= 1350:  # 17:00 ~ 22:30
+        return "pre"
+    elif total_minutes > 1350 or total_minutes < 300:  # 22:30 ~ 05:00
+        return "normal"
+    else:  # 05:00 ~ 08:50
+        return "after"
 
 def true_ai_summarize(text):
     text_lower = text.lower()
@@ -128,7 +130,7 @@ def save_data(news, gainers):
     new_news = [n for n in news if n["title"] not in existing_titles]
 
     data[today]["news"].extend(new_news)
-    data[today]["gainers"] = gainers  # 최신 gainers 덮어쓰기
+    data[today]["gainers"] = gainers
 
     with open(NEWS_FILE, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
