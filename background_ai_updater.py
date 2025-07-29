@@ -1,4 +1,3 @@
-# background_ai_updater.py
 import requests, json, os, re, random
 from bs4 import BeautifulSoup
 from datetime import datetime
@@ -11,7 +10,7 @@ def get_market_phase():
     hour = datetime.now(KST).hour
     if hour < 22:
         return "프리장"
-    elif 22 <= hour <= 28:  # 22~04시 (한국 기준 본장)
+    elif 22 <= hour <= 28:
         return "본장"
     else:
         return "애프터장"
@@ -54,33 +53,42 @@ def clean_symbol(text):
     return m.group(1) if m else ""
 
 def fetch_gainers_from_yahoo():
-    url = "https://finance.yahoo.com/gainers"
-    res = requests.get(url, headers={"User-Agent": "Mozilla/5.0"})
-    soup = BeautifulSoup(res.text, "html.parser")
-    gainers = []
-    for row in soup.select("table tbody tr"):
-        cols = row.find_all("td")
-        if len(cols) >= 3:
-            symbol = cols[0].text.strip()
-            change = cols[2].text.strip()
-            gainers.append({
-                "symbol": symbol,
-                "change": change,
-                "phase": get_market_phase()
-            })
-    return gainers
+    try:
+        url = "https://finance.yahoo.com/gainers"
+        res = requests.get(url, headers={"User-Agent": "Mozilla/5.0"}, timeout=10)
+        soup = BeautifulSoup(res.text, "html.parser")
+        gainers = []
+        for row in soup.select("table tbody tr"):
+            cols = row.find_all("td")
+            if len(cols) >= 3:
+                symbol = cols[0].text.strip()
+                change = cols[2].text.strip()
+                gainers.append({
+                    "symbol": symbol,
+                    "change": change,
+                    "phase": get_market_phase()
+                })
+        return gainers
+    except Exception as e:
+        print(f"❌ Yahoo Gainers Error: {e}")
+        return []
 
 def fetch_news_from_prnews():
-    url = "https://www.prnewswire.com/news-releases/news-releases-list/"
-    res = requests.get(url, headers={"User-Agent": "Mozilla/5.0"})
-    soup = BeautifulSoup(res.text, "html.parser")
     news_list = []
+    try:
+        url = "https://www.prnewswire.com/news-releases/news-releases-list/"
+        res = requests.get(url, headers={"User-Agent": "Mozilla/5.0"}, timeout=10)
+        soup = BeautifulSoup(res.text, "html.parser")
 
-    for item in soup.select(".newsRelease"):
-        title_tag = item.select_one(".newsTitle")
-        if title_tag:
+        for item in soup.select(".newsRelease"):
+            title_tag = item.select_one(".newsTitle")
+            if not title_tag:
+                continue
             title = title_tag.text.strip()
-            link = "https://www.prnewswire.com" + title_tag.get("href")
+            link_tag = title_tag.get("href")
+            if not link_tag:
+                continue
+            link = "https://www.prnewswire.com" + link_tag
             summary = true_ai_summarize(title)
             symbol = clean_symbol(title)
             now = datetime.now(KST)
@@ -94,6 +102,8 @@ def fetch_news_from_prnews():
                 "date": now.strftime("%Y-%m-%d"),
                 "source": "PRNewswire"
             })
+    except Exception as e:
+        print(f"❌ PRNews fetch error: {e}")
     return news_list
 
 def save_data(news, gainers):
