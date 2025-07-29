@@ -89,6 +89,11 @@ def fetch_news_from_prnews():
             if not link_tag:
                 continue
             link = "https://www.prnewswire.com" + link_tag
+
+            # ✅ 영어 제목만 필터링
+            if not re.search(r"[A-Za-z]{3,}", title):
+                continue
+
             summary = true_ai_summarize(title)
             symbol = clean_symbol(title)
             now = datetime.now(KST)
@@ -102,13 +107,20 @@ def fetch_news_from_prnews():
                 "date": now.strftime("%Y-%m-%d"),
                 "source": "PRNewswire"
             })
+
+        print(f"✅ 수집된 뉴스 개수: {len(news_list)}")
+
     except Exception as e:
         print(f"❌ PRNews fetch error: {e}")
     return news_list
 
 def save_data(news, gainers):
     today = datetime.now(KST).strftime("%Y-%m-%d")
-    data = {}  # ✅ 기존 파일 덮어쓰기 방식으로 변경
+    if os.path.exists(NEWS_FILE):
+        with open(NEWS_FILE, "r", encoding="utf-8") as f:
+            data = json.load(f)
+    else:
+        data = {}
     data[today] = {
         "news": news,
         "gainers": gainers,
