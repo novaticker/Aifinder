@@ -113,18 +113,15 @@
       const section = rawData[today] || {};
       const dataList = section[activeTab] || [];
 
-      if (activeTab === "news") filtersDiv.style.display = "flex";
-      else filtersDiv.style.display = "none";
+      filtersDiv.style.display = activeTab === "news" ? "flex" : "none";
 
       dataList.forEach(item => {
         const card = document.createElement("div");
         card.className = "card";
-
         const symbol = item.symbol ? `🧾 ${item.symbol}` : '';
         const time = item.time ? `🕒 ${item.time}` : '';
         const source = item.source ? `📰 ${item.source}` : '';
         const meta = `${symbol} ${time} ${source}`;
-
         const deleteBtn = `<span class="delete-btn" onclick="deleteNews('${item.symbol}', '${today}', \`${item.title}\`)">🗑️</span>`;
 
         card.innerHTML = `
