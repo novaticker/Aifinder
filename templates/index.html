@@ -3,149 +3,70 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>🚀 AI 급등주 탐색기</title>
+  <title>AI 급등주 탐색기</title>
   <style>
-    body {
-      font-family: "Pretendard", sans-serif;
-      background: #f7f9fc;
-      padding: 20px;
-      margin: 0;
-    }
-    h1 {
-      text-align: center;
-      color: #2b63c4;
-      font-size: 24px;
-      margin-bottom: 20px;
-    }
-    #refreshBtn {
-      display: block;
-      margin: 0 auto 20px;
-      padding: 10px 20px;
-      font-size: 16px;
-      background-color: #2ecc71;
-      color: white;
-      border: none;
-      border-radius: 8px;
-      cursor: pointer;
-    }
-    .card {
-      background: white;
-      border-radius: 10px;
-      padding: 15px;
-      margin-bottom: 15px;
-      box-shadow: 0 2px 6px rgba(0,0,0,0.1);
-    }
-    .symbol {
-      font-size: 20px;
-      font-weight: bold;
-      color: #2c3e50;
-    }
-    .summary {
-      margin-top: 5px;
-      font-size: 15px;
-    }
-    .meta {
-      font-size: 13px;
-      color: #555;
-      margin-top: 8px;
-    }
-    .delete-btn {
-      float: right;
-      background: none;
-      border: none;
-      cursor: pointer;
-    }
+    body { font-family: sans-serif; background: #f5f6fa; margin: 0; padding: 20px; text-align: center; }
+    .card { background: white; border-radius: 10px; padding: 15px; margin: 10px auto; width: 90%; max-width: 500px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); text-align: left; }
+    .symbol { font-weight: bold; font-size: 18px; color: #2c3e50; }
+    .summary { margin-top: 5px; color: #34495e; }
+    .info { font-size: 13px; color: gray; }
+    .delete-btn { float: right; cursor: pointer; }
+    .refresh-btn { margin: 20px auto; padding: 10px 20px; background: #2ecc71; color: white; border: none; border-radius: 5px; font-size: 16px; cursor: pointer; }
   </style>
 </head>
 <body>
-
-  <h1>🤖 AI 급등주 탐색기</h1>
-  <button id="refreshBtn">🔄 데이터 새로고침</button>
-
-  <div id="newsContainer"></div>
+  <h2>🤖 AI 급등주 탐색기</h2>
+  <button class="refresh-btn" onclick="refreshData()">🔄 데이터 새로고침</button>
+  <div id="gainer-list"></div>
 
   <script>
-    let currentData = {};
+    async function loadData() {
+      const res = await fetch('/data.json');
+      const data = await res.json();
+      const today = new Date().toISOString().slice(0, 10);
+      const list = document.getElementById('gainer-list');
+      list.innerHTML = '';
 
-    // 새로고침 버튼 클릭 시: /update_news → /data.json 순서로 호출
-    document.getElementById("refreshBtn").addEventListener("click", () => {
-      document.getElementById("refreshBtn").innerText = "⏳ 업데이트 중...";
-      fetch("/update_news")
-        .then(() => fetch("/data.json"))
-        .then(res => res.json())
-        .then(data => {
-          currentData = data;
-          renderData();
-          document.getElementById("refreshBtn").innerText = "🔄 데이터 새로고침";
-        })
-        .catch(() => {
-          alert("❌ 데이터 갱신 실패");
-          document.getElementById("refreshBtn").innerText = "🔄 데이터 새로고침";
-        });
-    });
-
-    function renderData() {
-      const container = document.getElementById("newsContainer");
-      container.innerHTML = "";
-
-      const today = new Date().toISOString().split("T")[0];
-      const items = currentData[today]?.gainers || [];
-
-      if (items.length === 0) {
-        container.innerHTML = "<p>📭 오늘의 급등 종목이 없습니다.</p>";
+      if (!data[today] || !data[today].gainers || data[today].gainers.length === 0) {
+        list.innerHTML = '<p>📌 오늘의 급등 종목이 없습니다.</p>';
         return;
       }
 
-      items.forEach(item => {
-        const card = document.createElement("div");
-        card.className = "card";
-
+      data[today].gainers.forEach(item => {
+        const card = document.createElement('div');
+        card.className = 'card';
         card.innerHTML = `
-          <div>
-            <span class="symbol">📰 ${item.symbol}</span>
-            <button class="delete-btn" onclick="deleteItem('${item.symbol}', '${today}')">🗑️</button>
+          <div class="symbol">🧾 ${item.symbol}
+            <span class="delete-btn" onclick="deleteItem('${item.symbol}', '${item.time}', '${today}')">🗑️</span>
           </div>
           <div class="summary">💡 AI 분석: ${item.summary || '정보 없음'}</div>
-          <div class="meta">🕒 ${item.time || '시간 없음'} | 📰 ${item.source || '출처 없음'}</div>
+          <div class="info">🕒 ${item.time || '-'} | 📰 ${item.phase || '-'}</div>
         `;
-        container.appendChild(card);
+        list.appendChild(card);
       });
     }
 
-    function deleteItem(symbol, date) {
-      if (!confirm(`정말 ${symbol} 뉴스를 삭제하시겠습니까?`)) return;
-
-      const item = currentData[date].gainers.find(n => n.symbol === symbol);
-      if (!item) return;
-
-      fetch("/delete_news", {
-        method: "POST",
-        headers: {"Content-Type": "application/json"},
-        body: JSON.stringify({
-          symbol: item.symbol,
-          title: item.title || "",
-          date: date
-        })
-      })
-      .then(res => res.json())
-      .then(res => {
-        if (res.status === "success") {
-          alert("✅ 삭제 완료");
-          currentData[date].gainers = currentData[date].gainers.filter(n => n.symbol !== symbol);
-          renderData();
-        } else {
-          alert("❌ 삭제 실패: " + res.message);
-        }
-      });
+    async function refreshData() {
+      await fetch('/update_news');
+      loadData();
     }
 
-    // 최초 로딩 시 /data.json 호출
-    fetch("/data.json")
-      .then(res => res.json())
-      .then(data => {
-        currentData = data;
-        renderData();
+    async function deleteItem(symbol, title, date) {
+      const res = await fetch('/delete_news', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ symbol, title, date })
       });
+      const result = await res.json();
+      if (result.status === 'success') {
+        alert('✅ 삭제됨');
+        loadData();
+      } else {
+        alert('❌ 삭제 실패');
+      }
+    }
+
+    loadData();
   </script>
 </body>
 </html>
