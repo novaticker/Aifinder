@@ -1,53 +1,56 @@
-import os
 from flask import Flask, jsonify, request
 from flask_cors import CORS
+import os
 import json
+import background_news_updater  # 같은 디렉토리에 있어야 함
 
 app = Flask(__name__)
 CORS(app)
+
+NEWS_FILE = 'positive_news.json'
 
 @app.route('/')
 def home():
     return '✅ NovaTicker AI Finder is running.'
 
 @app.route('/data.json')
-def get_data():
+def get_all_data():
     try:
-        with open('positive_news.json', 'r', encoding='utf-8') as f:
+        with open(NEWS_FILE, 'r', encoding='utf-8') as f:
             data = json.load(f)
         return jsonify(data)
+    except:
+        return jsonify({})
+
+@app.route('/update_news')
+def trigger_news_update():
+    try:
+        background_news_updater.update_news()
+        return '✅ News updated successfully.'
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        return f'❌ Error: {str(e)}'
 
 @app.route('/delete_news', methods=['POST'])
 def delete_news():
     try:
-        req = request.get_json()
-        date = req.get('date')
-        title = req.get('title')
-        if not date or not title:
-            return jsonify({'error': 'Missing date or title'}), 400
+        symbol = request.json.get('symbol')
+        date = request.json.get('date')
+        title = request.json.get('title')
 
-        with open('positive_news.json', 'r', encoding='utf-8') as f:
+        with open(NEWS_FILE, 'r', encoding='utf-8') as f:
             data = json.load(f)
 
         if date in data:
-            before = len(data[date])
-            data[date] = [item for item in data[date] if item['title'] != title]
-            after = len(data[date])
-            if before != after:
-                with open('positive_news.json', 'w', encoding='utf-8') as f:
-                    json.dump(data, f, ensure_ascii=False, indent=2)
-                return jsonify({'message': 'Deleted'}), 200
-            else:
-                return jsonify({'error': 'Not found'}), 404
-        else:
-            return jsonify({'error': 'Date not found'}), 404
+            data[date] = [item for item in data[date] if not (item['symbol'] == symbol and item['title'] == title)]
+            if not data[date]:
+                del data[date]
 
+        with open(NEWS_FILE, 'w', encoding='utf-8') as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+
+        return jsonify({'status': 'success'})
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'status': 'error', 'message': str(e)})
 
-# ✅ Render 환경변수 PORT 사용
 if __name__ == '__main__':
-    port = int(os.environ.get('PORT', 10000))  # Render가 넘겨주는 포트
-    app.run(host='0.0.0.0', port=port)
+    app.run()
