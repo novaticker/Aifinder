@@ -1,17 +1,14 @@
-from flask import Flask, jsonify, request, render_template
+from flask import Flask, jsonify, request
 from flask_cors import CORS
 import json
-import os
 
 app = Flask(__name__)
 CORS(app)
 
-# 홈 경로 처리 추가 (에러 해결용)
 @app.route('/')
 def home():
     return '✅ NovaTicker AI Finder is running.'
 
-# 데이터 응답 API
 @app.route('/data.json')
 def get_data():
     try:
@@ -21,7 +18,6 @@ def get_data():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-# 뉴스 수동 삭제 API
 @app.route('/delete_news', methods=['POST'])
 def delete_news():
     try:
@@ -50,5 +46,6 @@ def delete_news():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+# ✅ Render에서 접근 가능하도록 외부 IP와 포트 지정
 if __name__ == '__main__':
-    app.run()
+    app.run(host='0.0.0.0', port=10000)
