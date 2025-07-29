@@ -1,65 +1,54 @@
-# main.py
-from flask import Flask, render_template, jsonify, request
+from flask import Flask, jsonify, request, render_template
 from flask_cors import CORS
-import os
 import json
-from datetime import datetime
+import os
 
-app = Flask(__name__, template_folder="templates")
+app = Flask(__name__)
 CORS(app)
 
-NEWS_FILE = "positive_news.json"
+# 홈 경로 처리 추가 (에러 해결용)
+@app.route('/')
+def home():
+    return '✅ NovaTicker AI Finder is running.'
 
-@app.route("/")
-def index():
-    return render_template("index.html")
-
-@app.route("/data.json")
+# 데이터 응답 API
+@app.route('/data.json')
 def get_data():
-    today = datetime.now().strftime("%Y-%m-%d")
-    if not os.path.exists(NEWS_FILE):
-        return jsonify({"news": [], "gainers": [], "signals": []})
-    
-    with open(NEWS_FILE, "r", encoding="utf-8") as f:
-        data = json.load(f)
+    try:
+        with open('positive_news.json', 'r', encoding='utf-8') as f:
+            data = json.load(f)
+        return jsonify(data)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
-    return jsonify(data.get(today, {"news": [], "gainers": [], "signals": []}))
-
-@app.route("/delete_news", methods=["POST"])
+# 뉴스 수동 삭제 API
+@app.route('/delete_news', methods=['POST'])
 def delete_news():
-    content = request.json
-    title = content.get("title")
-    symbol = content.get("symbol")
-    today = datetime.now().strftime("%Y-%m-%d")
+    try:
+        req = request.get_json()
+        date = req.get('date')
+        title = req.get('title')
+        if not date or not title:
+            return jsonify({'error': 'Missing date or title'}), 400
 
-    if not os.path.exists(NEWS_FILE):
-        return jsonify({"status": "fail", "reason": "file not found"})
+        with open('positive_news.json', 'r', encoding='utf-8') as f:
+            data = json.load(f)
 
-    with open(NEWS_FILE, "r", encoding="utf-8") as f:
-        data = json.load(f)
-
-    if today in data:
-        before = len(data[today]["news"])
-        data[today]["news"] = [
-            item for item in data[today]["news"]
-            if not (item.get("title") == title and item.get("symbol") == symbol)
-        ]
-        after = len(data[today]["news"])
-
-        if after != before:
-            with open(NEWS_FILE, "w", encoding="utf-8") as f:
-                json.dump(data, f, ensure_ascii=False, indent=2)
-            return jsonify({"status": "success"})
+        if date in data:
+            before = len(data[date])
+            data[date] = [item for item in data[date] if item['title'] != title]
+            after = len(data[date])
+            if before != after:
+                with open('positive_news.json', 'w', encoding='utf-8') as f:
+                    json.dump(data, f, ensure_ascii=False, indent=2)
+                return jsonify({'message': 'Deleted'}), 200
+            else:
+                return jsonify({'error': 'Not found'}), 404
         else:
-            return jsonify({"status": "fail", "reason": "not found"})
+            return jsonify({'error': 'Date not found'}), 404
 
-    return jsonify({"status": "fail", "reason": "no data for today"})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
-@app.route("/update_news", methods=["POST"])
-def update_news():
-    os.system("python3 background_news_updater.py")
-    return jsonify({"status": "updated"})
-
-if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 5000))
-    app.run(host="0.0.0.0", port=port, debug=False)
+if __name__ == '__main__':
+    app.run()
