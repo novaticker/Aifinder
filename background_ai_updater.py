@@ -1,4 +1,4 @@
-import requests, json, os, re, random
+import requests, json, os, re
 from bs4 import BeautifulSoup
 from datetime import datetime
 import pytz
@@ -8,13 +8,12 @@ KST = pytz.timezone("Asia/Seoul")
 
 def get_market_phase():
     now = datetime.now(KST)
-    hour = now.hour
-    minute = now.minute
+    hour, minute = now.hour, now.minute
     if hour < 17 or (hour == 17 and minute < 0):
         return "애프터장"
     elif 17 <= hour < 22 or (hour == 22 and minute <= 30):
         return "프리장"
-    elif 22 < hour < 30:
+    elif 22 < hour <= 23:
         return "본장"
     else:
         return "데이장"
@@ -87,11 +86,14 @@ def fetch_news_from_prnews():
             link_tag = title_tag.get("href")
             if not link_tag:
                 continue
+            symbol = clean_symbol(title)
+            if not symbol:
+                continue  # 종목이 명확하지 않으면 제외
+
             link = "https://www.prnewswire.com" + link_tag
             summary = true_ai_summarize(title)
-            symbol = clean_symbol(title)
             now = datetime.now(KST)
-            news_list.append({
+            news_item = {
                 "title": title,
                 "link": link,
                 "summary": summary,
@@ -100,7 +102,8 @@ def fetch_news_from_prnews():
                 "timestamp": now.timestamp(),
                 "date": now.strftime("%Y-%m-%d"),
                 "source": "PRNewswire"
-            })
+            }
+            news_list.append(news_item)
     except Exception as e:
         print(f"❌ PRNews fetch error: {e}")
     return news_list
@@ -113,11 +116,15 @@ def save_data(news, gainers):
     else:
         data = {}
 
-    data[today] = {
-        "news": news,
-        "gainers": gainers,
-        "signals": []  # 향후 거래량 감지 기능 추가 시 사용
-    }
+    if today not in data:
+        data[today] = {"news": [], "gainers": [], "signals": []}
+
+    # 기존 뉴스 중복 제거
+    existing_titles = {n["title"] for n in data[today]["news"]}
+    new_news = [n for n in news if n["title"] not in existing_titles]
+
+    data[today]["news"].extend(new_news)
+    data[today]["gainers"] = gainers  # 매번 갱신
 
     with open(NEWS_FILE, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
