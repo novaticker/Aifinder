@@ -7,15 +7,22 @@ import pandas as pd
 from datetime import datetime
 import pytz
 from threading import Thread
+from flask import Flask, jsonify, render_template
+from flask_cors import CORS
 
 # 설정
 KST = pytz.timezone('Asia/Seoul')
 DATA_FILE = "detected_gainers.json"
 MODEL_PATH = "models/model.pkl"
 
+# Flask 앱 생성
+app = Flask(__name__, template_folder="templates")
+CORS(app)
+
 # AI 모델 불러오기
 model = joblib.load(MODEL_PATH)
 
+# 시장 시간대 판별
 def get_market_phase():
     now = datetime.now(KST)
     t = now.hour * 60 + now.minute
@@ -28,6 +35,7 @@ def get_market_phase():
     else:
         return "after"
 
+# 피처 추출
 def extract_features(df):
     df = df.copy()
     df["returns"] = df["Close"].pct_change()
@@ -41,6 +49,7 @@ def extract_features(df):
         latest["volatility"]
     ]]
 
+# AI 급등 판별
 def is_ai_gainer(df):
     if len(df) < 15:
         return False
@@ -50,11 +59,13 @@ def is_ai_gainer(df):
     except:
         return False
 
+# 나스닥 심볼 전체 불러오기
 def load_nasdaq_symbols():
     url = "https://old.nasdaq.com/screening/companies-by-name.aspx?letter=0&exchange=nasdaq&render=download"
     df = pd.read_csv(url)
     return df["Symbol"].dropna().tolist()
 
+# 감지 결과 저장
 def save_detected(results):
     if not os.path.exists(DATA_FILE):
         with open(DATA_FILE, "w", encoding="utf-8") as f:
@@ -76,6 +87,7 @@ def save_detected(results):
     with open(DATA_FILE, "w", encoding="utf-8") as f:
         json.dump(data[-100:], f, ensure_ascii=False, indent=2)
 
+# 개별 심볼 스캔
 def scan_symbol(symbol):
     try:
         df = yf.download(symbol, period="1d", interval="1m", progress=False)
@@ -90,7 +102,8 @@ def scan_symbol(symbol):
     except:
         return None
 
-def main_loop():
+# 반복 감지 쓰레드
+def run_detection_loop():
     symbols = load_nasdaq_symbols()
     while True:
         detected = []
@@ -106,7 +119,7 @@ def main_loop():
             t = Thread(target=worker, args=(sym,))
             t.start()
             threads.append(t)
-            time.sleep(0.05)  # 서버 과부하 방지
+            time.sleep(0.05)
 
         for t in threads:
             t.join()
@@ -114,7 +127,28 @@ def main_loop():
         if results:
             save_detected(results)
 
-        time.sleep(1)  # 1초마다 반복 실행
+        time.sleep(1)
 
+# 감지 쓰레드 실행
+@app.before_first_request
+def start_background_thread():
+    thread = Thread(target=run_detection_loop)
+    thread.daemon = True
+    thread.start()
+
+# 웹: 감지된 종목 데이터 반환
+@app.route("/data.json")
+def get_data():
+    if os.path.exists(DATA_FILE):
+        with open(DATA_FILE, "r", encoding="utf-8") as f:
+            return jsonify(json.load(f))
+    return jsonify([])
+
+# 웹: 메인 페이지 렌더링
+@app.route("/")
+def index():
+    return render_template("index.html")
+
+# 실행
 if __name__ == "__main__":
-    main_loop()
+    app.run(debug=False, host="0.0.0.0", port=5000)
