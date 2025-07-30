@@ -15,7 +15,7 @@ from symbols_manager import load_cached_symbols, fetch_and_cache_symbols
 KST = pytz.timezone('Asia/Seoul')
 DATA_FILE = "detected_gainers.json"
 MODEL_PATH = "models/model.pkl"
-RENDER_URL = "https://aifinder-0bf3.onrender.com"  # 🔥 너의 주소로 설정 완료
+RENDER_URL = "https://aifinder-0bf3.onrender.com"
 
 app = Flask(__name__, template_folder="templates")
 CORS(app)
@@ -145,6 +145,17 @@ def get_data():
     if os.path.exists(DATA_FILE):
         with open(DATA_FILE, "r", encoding="utf-8") as f:
             return jsonify(json.load(f))
+    return jsonify([])
+
+# ✅ 현재 장에 해당하는 종목만 필터링해서 반환
+@app.route("/current_data.json")
+def get_current_phase_data():
+    current_phase = get_market_phase()
+    if os.path.exists(DATA_FILE):
+        with open(DATA_FILE, "r", encoding="utf-8") as f:
+            all_data = json.load(f)
+            filtered = [d for d in all_data if d.get("phase") == current_phase]
+            return jsonify(filtered)
     return jsonify([])
 
 @app.route("/update_symbols")
