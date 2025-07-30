@@ -12,7 +12,7 @@ from flask_cors import CORS
 
 # 설정
 KST = pytz.timezone('Asia/Seoul')
-MODEL_PATH = "model.pkl"
+MODEL_PATH = "models/model.pkl"  # 경로 수정됨
 DATA_FILE = "ai_detected.json"
 RENDER_URL = "https://aifinder-0bf3.onrender.com"
 MAX_ENTRIES = 100
