@@ -61,9 +61,12 @@ def is_ai_gainer(df):
 
 # 나스닥 심볼 전체 불러오기
 def load_nasdaq_symbols():
-    url = "https://old.nasdaq.com/screening/companies-by-name.aspx?letter=0&exchange=nasdaq&render=download"
-    df = pd.read_csv(url)
-    return df["Symbol"].dropna().tolist()
+    try:
+        url = "https://old.nasdaq.com/screening/companies-by-name.aspx?letter=0&exchange=nasdaq&render=download"
+        df = pd.read_csv(url)
+        return df["Symbol"].dropna().tolist()
+    except:
+        return []
 
 # 감지 결과 저장
 def save_detected(results):
@@ -72,7 +75,10 @@ def save_detected(results):
             json.dump([], f)
 
     with open(DATA_FILE, "r", encoding="utf-8") as f:
-        data = json.load(f)
+        try:
+            data = json.load(f)
+        except:
+            data = []
 
     now_time = datetime.now(KST).strftime("%H:%M")
     phase = get_market_phase()
@@ -119,7 +125,7 @@ def run_detection_loop():
             t = Thread(target=worker, args=(sym,))
             t.start()
             threads.append(t)
-            time.sleep(0.05)
+            time.sleep(0.05)  # 과부하 방지
 
         for t in threads:
             t.join()
@@ -129,14 +135,14 @@ def run_detection_loop():
 
         time.sleep(1)
 
-# 감지 쓰레드 실행
+# 감지 쓰레드 시작
 @app.before_first_request
 def start_background_thread():
     thread = Thread(target=run_detection_loop)
     thread.daemon = True
     thread.start()
 
-# 웹: 감지된 종목 데이터 반환
+# 데이터 반환
 @app.route("/data.json")
 def get_data():
     if os.path.exists(DATA_FILE):
@@ -144,7 +150,7 @@ def get_data():
             return jsonify(json.load(f))
     return jsonify([])
 
-# 웹: 메인 페이지 렌더링
+# 웹 페이지
 @app.route("/")
 def index():
     return render_template("index.html")
