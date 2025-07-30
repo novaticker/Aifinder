@@ -24,6 +24,7 @@ CORS(app)
 # AI 모델 불러오기
 model = joblib.load(MODEL_PATH)
 
+# 시장 구분
 def get_market_phase():
     now = datetime.now(KST)
     t = now.hour * 60 + now.minute
@@ -36,6 +37,7 @@ def get_market_phase():
     else:
         return "after"
 
+# 피처 추출
 def extract_features(df):
     df = df.copy()
     df["returns"] = df["Close"].pct_change()
@@ -49,6 +51,7 @@ def extract_features(df):
         latest["volatility"]
     ]]
 
+# 급등 여부
 def is_ai_gainer(df):
     if len(df) < 15:
         return False
@@ -58,6 +61,7 @@ def is_ai_gainer(df):
     except:
         return False
 
+# 결과 저장
 def save_detected(results):
     if not os.path.exists(DATA_FILE):
         with open(DATA_FILE, "w", encoding="utf-8") as f:
@@ -79,6 +83,7 @@ def save_detected(results):
     with open(DATA_FILE, "w", encoding="utf-8") as f:
         json.dump(data[-100:], f, ensure_ascii=False, indent=2)
 
+# 개별 종목 스캔
 def scan_symbol(symbol):
     try:
         df = yf.download(symbol, period="1d", interval="1m", progress=False)
@@ -93,12 +98,12 @@ def scan_symbol(symbol):
     except:
         return None
 
+# 감지 루프
 def run_detection_loop():
     symbols = load_cached_symbols()
     while True:
-        detected = []
-        threads = []
         results = []
+        threads = []
 
         def worker(sym):
             result = scan_symbol(sym)
@@ -109,7 +114,7 @@ def run_detection_loop():
             t = Thread(target=worker, args=(sym,))
             t.start()
             threads.append(t)
-            time.sleep(0.05)
+            time.sleep(0.05)  # 과부하 방지
 
         for t in threads:
             t.join()
@@ -119,12 +124,15 @@ def run_detection_loop():
 
         time.sleep(1)
 
-@app.before_first_request
-def start_background_thread():
-    thread = Thread(target=run_detection_loop)
-    thread.daemon = True
-    thread.start()
+# 앱 시작 시 스레드 시작
+def start_detection_thread():
+    t = Thread(target=run_detection_loop)
+    t.daemon = True
+    t.start()
 
+start_detection_thread()  # 앱 실행 즉시 시작
+
+# API: 감지 결과 반환
 @app.route("/data.json")
 def get_data():
     if os.path.exists(DATA_FILE):
@@ -132,14 +140,17 @@ def get_data():
             return jsonify(json.load(f))
     return jsonify([])
 
+# API: 종목 리스트 수동 갱신
 @app.route("/update_symbols")
 def update_symbols():
     symbols = fetch_and_cache_symbols()
     return jsonify({"status": "updated", "count": len(symbols)})
 
+# 메인 페이지 렌더
 @app.route("/")
 def index():
     return render_template("index.html")
 
+# 실행
 if __name__ == "__main__":
     app.run(debug=False, host="0.0.0.0", port=5000)
