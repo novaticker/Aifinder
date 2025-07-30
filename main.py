@@ -5,6 +5,7 @@ import joblib
 import yfinance as yf
 import pytz
 import requests
+import pandas as pd
 from datetime import datetime
 from threading import Thread
 from flask import Flask, jsonify, render_template
@@ -25,13 +26,33 @@ model = joblib.load(MODEL_PATH)
 SYMBOLS_CACHE = []
 def load_symbols():
     global SYMBOLS_CACHE
-    if not SYMBOLS_CACHE:
-        if os.path.exists(SYMBOL_FILE):
+    if SYMBOLS_CACHE:
+        return SYMBOLS_CACHE
+
+    # 파일이 존재하고 비어있지 않은 경우
+    if os.path.exists(SYMBOL_FILE):
+        try:
             with open(SYMBOL_FILE, "r") as f:
-                SYMBOLS_CACHE = json.load(f)
-        else:
-            SYMBOLS_CACHE = []  # 비어 있어도 이후 자동 수집 시스템과 연동 가능
-    return SYMBOLS_CACHE
+                data = json.load(f)
+                if data:
+                    SYMBOLS_CACHE = data
+                    return SYMBOLS_CACHE
+        except:
+            pass
+
+    # 자동으로 나스닥 전체 심볼 수집
+    try:
+        print("🔄 나스닥 전체 종목 자동 수집 중...")
+        url = "https://old.nasdaq.com/screening/companies-by-name.aspx?exchange=NASDAQ&render=download"
+        df = pd.read_csv(url)
+        symbols = df["Symbol"].dropna().unique().tolist()
+        SYMBOLS_CACHE = symbols[:1000]  # 무료 제한 고려
+        with open(SYMBOL_FILE, "w") as f:
+            json.dump(SYMBOLS_CACHE, f, indent=2)
+        return SYMBOLS_CACHE
+    except Exception as e:
+        print(f"❌ 종목 수집 실패: {e}")
+        return []
 
 # 장 구분
 def get_market_phase():
