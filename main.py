@@ -72,15 +72,12 @@ def save_detected(results):
         r["phase"] = phase
         r["summary"] = f"📈 AI 판단: {r['symbol']}에 급등 패턴 감지됨"
 
-        # AI 추천
         if r.get("ai_pick"):
             if not any(d["symbol"] == r["symbol"] for d in data["ai_picks"]):
                 data["ai_picks"].append(r)
-        # 일반 급등 탐지
         if not any(d["symbol"] == r["symbol"] for d in data["gainers"]):
             data["gainers"].append(r)
 
-    # 최신 100개만 유지
     data["ai_picks"] = data["ai_picks"][-100:]
     data["gainers"] = data["gainers"][-100:]
 
@@ -159,6 +156,16 @@ def get_data():
         with open(DATA_FILE, "r", encoding="utf-8") as f:
             return jsonify(json.load(f))
     return jsonify({"ai_picks": [], "gainers": []})
+
+@app.route("/current_data.json")
+def get_current_phase_data():
+    current_phase = get_market_phase()
+    if os.path.exists(DATA_FILE):
+        with open(DATA_FILE, "r", encoding="utf-8") as f:
+            all_data = json.load(f)
+            filtered = [d for d in all_data["gainers"] if d.get("phase") == current_phase]
+            return jsonify(filtered)
+    return jsonify([])
 
 @app.route("/update_symbols")
 def update_symbols():
