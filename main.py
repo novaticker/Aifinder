@@ -4,8 +4,9 @@ import time
 import joblib
 import yfinance as yf
 import pandas as pd
-from datetime import datetime
 import pytz
+import requests
+from datetime import datetime
 from threading import Thread
 from flask import Flask, jsonify, render_template
 from flask_cors import CORS
@@ -14,6 +15,7 @@ from symbols_manager import load_cached_symbols, fetch_and_cache_symbols
 KST = pytz.timezone('Asia/Seoul')
 DATA_FILE = "detected_gainers.json"
 MODEL_PATH = "models/model.pkl"
+RENDER_URL = "https://aifinder-0bf3.onrender.com"  # 🔥 너의 주소로 설정 완료
 
 app = Flask(__name__, template_folder="templates")
 CORS(app)
@@ -117,12 +119,26 @@ def run_detection_loop():
 
         time.sleep(1)
 
+def keep_alive_loop():
+    while True:
+        try:
+            requests.get(RENDER_URL)
+        except Exception as e:
+            print(f"[Ping 실패] {e}")
+        time.sleep(300)  # 5분
+
 def start_detection_thread():
     t = Thread(target=run_detection_loop)
     t.daemon = True
     t.start()
 
+def start_keep_alive_thread():
+    t = Thread(target=keep_alive_loop)
+    t.daemon = True
+    t.start()
+
 start_detection_thread()
+start_keep_alive_thread()
 
 @app.route("/data.json")
 def get_data():
