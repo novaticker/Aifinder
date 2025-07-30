@@ -10,9 +10,10 @@ from threading import Thread
 from flask import Flask, jsonify, render_template
 from flask_cors import CORS
 
-# 설정
+# 기본 설정
 KST = pytz.timezone('Asia/Seoul')
-MODEL_PATH = "models/model.pkl"  # 경로 수정됨
+MODEL_PATH = "model.pkl"
+SYMBOL_FILE = "symbols_nasdaq.json"
 DATA_FILE = "ai_detected.json"
 RENDER_URL = "https://aifinder-0bf3.onrender.com"
 MAX_ENTRIES = 100
@@ -20,13 +21,16 @@ MAX_ENTRIES = 100
 # 모델 로딩
 model = joblib.load(MODEL_PATH)
 
-# 종목 리스트 캐시 (한 번만 로드)
+# 심볼 로딩
 SYMBOLS_CACHE = []
 def load_symbols():
     global SYMBOLS_CACHE
     if not SYMBOLS_CACHE:
-        with open("symbols_nasdaq.json", "r") as f:
-            SYMBOLS_CACHE = json.load(f)
+        if os.path.exists(SYMBOL_FILE):
+            with open(SYMBOL_FILE, "r") as f:
+                SYMBOLS_CACHE = json.load(f)
+        else:
+            SYMBOLS_CACHE = []  # 비어 있어도 이후 자동 수집 시스템과 연동 가능
     return SYMBOLS_CACHE
 
 # 장 구분
@@ -56,8 +60,8 @@ def extract_features(df):
         latest["volatility"]
     ]]
 
-# AI 감지
-def is_ai_gainer(df):
+# AI 판단
+def is_ai_pick(df):
     if len(df) < 15:
         return False
     try:
@@ -70,14 +74,12 @@ def is_ai_gainer(df):
 def save_results(gainers, picks):
     now = datetime.now(KST).strftime("%H:%M")
     phase = get_market_phase()
-
     data = {
         "time": now,
         "phase": phase,
         "gainers": gainers[-MAX_ENTRIES:],
         "ai_picks": picks[-MAX_ENTRIES:]
     }
-
     with open(DATA_FILE, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
 
@@ -85,11 +87,12 @@ def save_results(gainers, picks):
 def scan_symbol(symbol):
     try:
         df = yf.download(symbol, period="1d", interval="1m", progress=False)
+        if df.empty or len(df) < 15:
+            return None
         info = yf.Ticker(symbol).info
         name = info.get("shortName", "")
         price = round(df["Close"].iloc[-1], 2)
         percent = df["Close"].pct_change().iloc[-1] * 100
-
         item = {
             "symbol": symbol,
             "name": name,
@@ -98,13 +101,11 @@ def scan_symbol(symbol):
             "time": datetime.now(KST).strftime("%H:%M"),
             "phase": get_market_phase()
         }
-
-        if is_ai_gainer(df):
-            item["summary"] = f"📈 AI 감지: {symbol} 급등 신호 포착"
+        if is_ai_pick(df):
+            item["summary"] = f"📈 AI 감지: {symbol}에 급등 신호 포착"
             item["ai_pick"] = True
         else:
             item["ai_pick"] = False
-
         return item
     except:
         return None
@@ -118,14 +119,14 @@ def run_loop():
         threads = []
 
         def worker(sym):
-            res = scan_symbol(sym)
-            if res:
-                results.append(res)
-                if res["ai_pick"]:
-                    picks.append(res)
+            result = scan_symbol(sym)
+            if result:
+                results.append(result)
+                if result["ai_pick"]:
+                    picks.append(result)
 
-        for s in symbols:
-            t = Thread(target=worker, args=(s,))
+        for sym in symbols:
+            t = Thread(target=worker, args=(sym,))
             t.start()
             threads.append(t)
             time.sleep(0.05)
@@ -134,18 +135,18 @@ def run_loop():
             t.join()
 
         save_results(results, picks)
-        time.sleep(60)
+        time.sleep(60)  # 1분 주기
 
-# 렌더 슬립 방지
+# Render 슬립 방지 루프
 def keep_alive():
     while True:
         try:
-            requests.get(RENDER_URL)
+            requests.get(RENDER_URL + "/data.json")
         except:
             pass
-        time.sleep(300)
+        time.sleep(280)
 
-# Flask 웹 서버
+# 웹 서버
 app = Flask(__name__, template_folder="templates")
 CORS(app)
 
@@ -164,4 +165,4 @@ def index():
 if __name__ == "__main__":
     Thread(target=run_loop, daemon=True).start()
     Thread(target=keep_alive, daemon=True).start()
-    app.run(debug=False, host="0.0.0.0", port=5000)
+    app.run(host="0.0.0.0", port=5000)
