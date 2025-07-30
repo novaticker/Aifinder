@@ -1,51 +1,120 @@
-from flask import Flask, jsonify, request
-from flask_cors import CORS
-import pandas as pd
-import yfinance as yf
-from datetime import datetime, timedelta
-import pytz
 import os
-from ai_model import is_ai_abnormal
+import json
+import time
+import joblib
+import yfinance as yf
+import pandas as pd
+from datetime import datetime
+import pytz
+from threading import Thread
 
-app = Flask(__name__)
-CORS(app)
-
+# 설정
 KST = pytz.timezone('Asia/Seoul')
+DATA_FILE = "detected_gainers.json"
+MODEL_PATH = "models/model.pkl"
 
-@app.route('/check', methods=['POST'])
-def check_stock():
-    data = request.json
-    symbol = data.get("symbol")
+# AI 모델 불러오기
+model = joblib.load(MODEL_PATH)
 
-    if not symbol:
-        return jsonify({"error": "symbol is required"}), 400
+def get_market_phase():
+    now = datetime.now(KST)
+    t = now.hour * 60 + now.minute
+    if 540 <= t < 1010:
+        return "day"
+    elif 1020 <= t <= 1350:
+        return "pre"
+    elif t > 1350 or t < 300:
+        return "normal"
+    else:
+        return "after"
 
+def extract_features(df):
+    df = df.copy()
+    df["returns"] = df["Close"].pct_change()
+    df["ma10"] = df["Close"].rolling(window=10).mean()
+    df["ma_dev"] = (df["Close"] - df["ma10"]) / df["ma10"]
+    df["volatility"] = df["returns"].rolling(window=10).std()
+    latest = df.iloc[-1]
+    return [[
+        latest["returns"],
+        latest["ma_dev"],
+        latest["volatility"]
+    ]]
+
+def is_ai_gainer(df):
+    if len(df) < 15:
+        return False
     try:
-        df = fetch_stock_data(symbol)
-        if df is None or len(df) < 10:
-            return jsonify({"result": "no_data"})
+        features = extract_features(df)
+        return model.predict(features)[0] == 1
+    except:
+        return False
 
-        is_abnormal = is_ai_abnormal(df)
-        return jsonify({"symbol": symbol, "ai_detected": is_abnormal})
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+def load_nasdaq_symbols():
+    url = "https://old.nasdaq.com/screening/companies-by-name.aspx?letter=0&exchange=nasdaq&render=download"
+    df = pd.read_csv(url)
+    return df["Symbol"].dropna().tolist()
 
+def save_detected(results):
+    if not os.path.exists(DATA_FILE):
+        with open(DATA_FILE, "w", encoding="utf-8") as f:
+            json.dump([], f)
 
-def fetch_stock_data(symbol):
+    with open(DATA_FILE, "r", encoding="utf-8") as f:
+        data = json.load(f)
+
+    now_time = datetime.now(KST).strftime("%H:%M")
+    phase = get_market_phase()
+
+    for r in results:
+        if not any(d["symbol"] == r["symbol"] for d in data):
+            r["time"] = now_time
+            r["phase"] = phase
+            r["summary"] = f"📈 AI 판단: {r['symbol']}에 급등 패턴 감지됨"
+            data.append(r)
+
+    with open(DATA_FILE, "w", encoding="utf-8") as f:
+        json.dump(data[-100:], f, ensure_ascii=False, indent=2)
+
+def scan_symbol(symbol):
     try:
-        now = datetime.now(KST)
-        start = now - timedelta(days=3)
-
-        df = yf.download(symbol, start=start.strftime('%Y-%m-%d'), interval='5m')
-        if df.empty:
-            return None
-        df = df[['Close']].rename(columns={'Close': 'close'})
-        return df
-    except Exception as e:
-        print(f"데이터 가져오기 오류: {e}")
+        df = yf.download(symbol, period="1d", interval="1m", progress=False)
+        if is_ai_gainer(df):
+            price = round(df['Close'].iloc[-1], 2)
+            ret = df["Close"].pct_change().iloc[-1] * 100
+            return {
+                "symbol": symbol,
+                "price": price,
+                "percent": f"{ret:+.2f}%"
+            }
+    except:
         return None
 
+def main_loop():
+    symbols = load_nasdaq_symbols()
+    while True:
+        detected = []
+        threads = []
+        results = []
 
-if __name__ == '__main__':
-    port = int(os.environ.get("PORT", 5000))
-    app.run(host='0.0.0.0', port=port)
+        def worker(sym):
+            result = scan_symbol(sym)
+            if result:
+                results.append(result)
+
+        for sym in symbols:
+            t = Thread(target=worker, args=(sym,))
+            t.start()
+            threads.append(t)
+            time.sleep(0.05)  # 서버 과부하 방지
+
+        for t in threads:
+            t.join()
+
+        if results:
+            save_detected(results)
+
+        time.sleep(1)  # 1초마다 반복 실행
+
+if __name__ == "__main__":
+    main_loop()
