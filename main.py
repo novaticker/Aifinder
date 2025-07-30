@@ -22,8 +22,10 @@ MAX_ENTRIES = 100
 # 모델 로딩
 model = joblib.load(MODEL_PATH)
 
-# 심볼 로딩
+# 심볼 캐시
 SYMBOLS_CACHE = []
+
+# 심볼 자동 수집 및 필터링
 def load_symbols():
     global SYMBOLS_CACHE
     if SYMBOLS_CACHE:
@@ -32,21 +34,41 @@ def load_symbols():
         if os.path.exists(SYMBOL_FILE):
             with open(SYMBOL_FILE, "r") as f:
                 data = json.load(f)
-                # 비어있으면 자동 수집
                 if isinstance(data, list) and len(data) > 0:
                     SYMBOLS_CACHE = data
                     return SYMBOLS_CACHE
-                else:
-                    print("⚠️ 종목 리스트가 비어있습니다. 자동 수집 시작.")
-        # 자동 수집
-        print("🔄 나스닥 전체 종목 자동 수집 중...")
+        print("🔄 나스닥 종목 수집 중...")
+
         url = "https://old.nasdaq.com/screening/companies-by-name.aspx?exchange=NASDAQ&render=download"
         df = pd.read_csv(url)
         symbols = df["Symbol"].dropna().unique().tolist()
-        SYMBOLS_CACHE = symbols[:1000]
+        filtered = []
+        blocklist = ["AAPL", "MSFT", "GOOG", "AMZN", "NVDA", "META", "TSLA"]
+
+        for symbol in symbols:
+            if symbol in blocklist:
+                continue
+            try:
+                info = yf.Ticker(symbol).info
+                price = info.get("regularMarketPrice", 0)
+                cap = info.get("marketCap", 0)
+                vol = info.get("averageVolume", 0)
+                if price and 0.5 <= price <= 500 and cap < 5e9 and vol >= 100000:
+                    hist = yf.download(symbol, period="10d", interval="1d", progress=False)
+                    if len(hist) >= 2:
+                        change = (hist["Close"].iloc[-1] - hist["Close"].iloc[0]) / hist["Close"].iloc[0]
+                        if abs(change) >= 0.10:
+                            filtered.append(symbol)
+                if len(filtered) >= 800:
+                    break
+            except:
+                continue
+
+        SYMBOLS_CACHE = filtered
         with open(SYMBOL_FILE, "w") as f:
-            json.dump(SYMBOLS_CACHE, f, indent=2)
-        return SYMBOLS_CACHE
+            json.dump(filtered, f, indent=2)
+        print(f"✅ 필터링 완료: {len(filtered)}개 종목 저장됨")
+        return filtered
     except Exception as e:
         print(f"❌ 종목 수집 실패: {e}")
         return []
@@ -88,21 +110,17 @@ def is_ai_pick(df):
     except:
         return False
 
-# 저장
+# 결과 저장
 def save_results(gainers, picks):
     now = datetime.now(KST)
     time_str = now.strftime("%H:%M")
     date_str = now.strftime("%Y-%m-%d")
     phase = get_market_phase()
 
-    for item in gainers:
+    for item in gainers + picks:
         item["time"] = time_str
-        item["phase"] = phase
         item["date"] = date_str
-    for item in picks:
-        item["time"] = time_str
         item["phase"] = phase
-        item["date"] = date_str
 
     data = {
         "time": time_str,
@@ -138,13 +156,11 @@ def scan_symbol(symbol):
     except:
         return None
 
-# 감지 루프
+# AI 탐색 루프
 def run_loop():
     symbols = load_symbols()
     while True:
-        results = []
-        picks = []
-        threads = []
+        results, picks, threads = [], [], []
 
         def worker(sym):
             result = scan_symbol(sym)
@@ -174,7 +190,7 @@ def keep_alive():
             pass
         time.sleep(280)
 
-# 웹 서버
+# 웹서버
 app = Flask(__name__, template_folder="templates")
 CORS(app)
 
@@ -184,8 +200,8 @@ def data_json():
     if os.path.exists(DATA_FILE):
         with open(DATA_FILE, "r", encoding="utf-8") as f:
             raw = json.load(f)
-            gainers = [g for g in raw.get("gainers", []) if g.get("date") == today]
-            picks = [p for p in raw.get("ai_picks", []) if p.get("date") == today]
+            gainers = [x for x in raw.get("gainers", []) if x.get("date") == today]
+            picks = [x for x in raw.get("ai_picks", []) if x.get("date") == today]
             return jsonify({
                 "gainers": gainers[-MAX_ENTRIES:],
                 "ai_picks": picks[-MAX_ENTRIES:]
