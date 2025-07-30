@@ -3,27 +3,33 @@ import json
 import time
 import joblib
 import yfinance as yf
-import pandas as pd
 import pytz
 import requests
 from datetime import datetime
 from threading import Thread
 from flask import Flask, jsonify, render_template
 from flask_cors import CORS
-from symbols_manager import load_cached_symbols, fetch_and_cache_symbols
 
 # 설정
-KST = pytz.timezone("Asia/Seoul")
-DATA_FILE = "detected_gainers.json"
-RECOMMEND_FILE = "ai_picks.json"
-MODEL_PATH = "models/model.pkl"
+KST = pytz.timezone('Asia/Seoul')
+MODEL_PATH = "model.pkl"
+DATA_FILE = "ai_detected.json"
 RENDER_URL = "https://aifinder-0bf3.onrender.com"
+MAX_ENTRIES = 100
 
-app = Flask(__name__, template_folder="templates")
-CORS(app)
-
+# 모델 로딩
 model = joblib.load(MODEL_PATH)
 
+# 종목 리스트 캐시 (한 번만 로드)
+SYMBOLS_CACHE = []
+def load_symbols():
+    global SYMBOLS_CACHE
+    if not SYMBOLS_CACHE:
+        with open("symbols_nasdaq.json", "r") as f:
+            SYMBOLS_CACHE = json.load(f)
+    return SYMBOLS_CACHE
+
+# 장 구분
 def get_market_phase():
     now = datetime.now(KST)
     t = now.hour * 60 + now.minute
@@ -36,6 +42,7 @@ def get_market_phase():
     else:
         return "after"
 
+# 피처 추출
 def extract_features(df):
     df = df.copy()
     df["returns"] = df["Close"].pct_change()
@@ -49,6 +56,7 @@ def extract_features(df):
         latest["volatility"]
     ]]
 
+# AI 감지
 def is_ai_gainer(df):
     if len(df) < 15:
         return False
@@ -58,80 +66,66 @@ def is_ai_gainer(df):
     except:
         return False
 
-def save_detected(results):
-    if not os.path.exists(DATA_FILE):
-        with open(DATA_FILE, "w", encoding="utf-8") as f:
-            json.dump({"ai_picks": [], "gainers": []}, f)
-
-    with open(DATA_FILE, "r", encoding="utf-8") as f:
-        data = json.load(f)
-
-    now_time = datetime.now(KST).strftime("%H:%M")
+# 저장
+def save_results(gainers, picks):
+    now = datetime.now(KST).strftime("%H:%M")
     phase = get_market_phase()
 
-    for r in results:
-        r["time"] = now_time
-        r["phase"] = phase
-        r["summary"] = f"📈 AI 판단: {r['symbol']}에 급등 패턴 감지됨"
-
-        if r.get("ai_pick"):
-            if not any(d["symbol"] == r["symbol"] for d in data["ai_picks"]):
-                data["ai_picks"].append(r)
-        else:
-            if not any(d["symbol"] == r["symbol"] for d in data["gainers"]):
-                data["gainers"].append(r)
-
-    data["ai_picks"] = data["ai_picks"][-100:]
-    data["gainers"] = data["gainers"][-100:]
+    data = {
+        "time": now,
+        "phase": phase,
+        "gainers": gainers[-MAX_ENTRIES:],
+        "ai_picks": picks[-MAX_ENTRIES:]
+    }
 
     with open(DATA_FILE, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
 
-def save_ai_recommendations(recommendations):
-    now = datetime.now(KST).strftime("%Y-%m-%d %H:%M:%S")
-    for r in recommendations:
-        r["summary"] = f"📌 AI 추천: {r['symbol']}은 추가 상승 여지가 있습니다."
-        r["time"] = now
-
-    with open(RECOMMEND_FILE, "w", encoding="utf-8") as f:
-        json.dump({"ai_picks": recommendations}, f, ensure_ascii=False, indent=2)
-
+# 종목 분석
 def scan_symbol(symbol):
     try:
         df = yf.download(symbol, period="1d", interval="1m", progress=False)
         info = yf.Ticker(symbol).info
         name = info.get("shortName", "")
-        price = round(df['Close'].iloc[-1], 2)
-        ret = df["Close"].pct_change().iloc[-1] * 100
+        price = round(df["Close"].iloc[-1], 2)
+        percent = df["Close"].pct_change().iloc[-1] * 100
 
         item = {
             "symbol": symbol,
             "name": name,
             "price": price,
-            "percent": f"{ret:+.2f}%"
+            "percent": f"{percent:+.2f}%",
+            "time": datetime.now(KST).strftime("%H:%M"),
+            "phase": get_market_phase()
         }
 
-        item["ai_pick"] = is_ai_gainer(df)
-        return item, df
-    except:
-        return None, None
+        if is_ai_gainer(df):
+            item["summary"] = f"📈 AI 감지: {symbol} 급등 신호 포착"
+            item["ai_pick"] = True
+        else:
+            item["ai_pick"] = False
 
-def run_detection_loop():
-    symbols = load_cached_symbols()
+        return item
+    except:
+        return None
+
+# 감지 루프
+def run_loop():
+    symbols = load_symbols()
     while True:
         results = []
+        picks = []
         threads = []
-        ai_recommend = []
 
         def worker(sym):
-            result, df = scan_symbol(sym)
-            if result:
-                results.append(result)
-                if is_ai_gainer(df):
-                    ai_recommend.append(result)
+            res = scan_symbol(sym)
+            if res:
+                results.append(res)
+                if res["ai_pick"]:
+                    picks.append(res)
 
-        for sym in symbols:
-            t = Thread(target=worker, args=(sym,))
+        for s in symbols:
+            t = Thread(target=worker, args=(s,))
             t.start()
             threads.append(t)
             time.sleep(0.05)
@@ -139,57 +133,35 @@ def run_detection_loop():
         for t in threads:
             t.join()
 
-        if results:
-            save_detected(results)
-
-        if ai_recommend:
-            save_ai_recommendations(ai_recommend)
-
+        save_results(results, picks)
         time.sleep(60)
 
-def keep_alive_loop():
+# 렌더 슬립 방지
+def keep_alive():
     while True:
         try:
             requests.get(RENDER_URL)
-        except Exception as e:
-            print(f"[Ping 실패] {e}")
+        except:
+            pass
         time.sleep(300)
 
-def start_detection_thread():
-    t = Thread(target=run_detection_loop)
-    t.daemon = True
-    t.start()
-
-def start_keep_alive_thread():
-    t = Thread(target=keep_alive_loop)
-    t.daemon = True
-    t.start()
-
-start_detection_thread()
-start_keep_alive_thread()
+# Flask 웹 서버
+app = Flask(__name__, template_folder="templates")
+CORS(app)
 
 @app.route("/data.json")
-def get_data():
+def data_json():
     if os.path.exists(DATA_FILE):
         with open(DATA_FILE, "r", encoding="utf-8") as f:
             return jsonify(json.load(f))
-    return jsonify({"ai_picks": [], "gainers": []})
-
-@app.route("/ai.json")
-def get_ai_data():
-    if os.path.exists(RECOMMEND_FILE):
-        with open(RECOMMEND_FILE, "r", encoding="utf-8") as f:
-            return jsonify(json.load(f))
-    return jsonify({"ai_picks": []})
-
-@app.route("/update_symbols")
-def update_symbols():
-    symbols = fetch_and_cache_symbols()
-    return jsonify({"status": "updated", "count": len(symbols)})
+    return jsonify({"gainers": [], "ai_picks": []})
 
 @app.route("/")
 def index():
     return render_template("index.html")
 
+# 시작
 if __name__ == "__main__":
+    Thread(target=run_loop, daemon=True).start()
+    Thread(target=keep_alive, daemon=True).start()
     app.run(debug=False, host="0.0.0.0", port=5000)
