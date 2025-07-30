@@ -13,6 +13,6 @@ echo "⬆️ Upgrading pip, setuptools..."
 pip install --upgrade pip setuptools wheel
 
 echo "📄 Installing requirements..."
-pip install --no-use-pep517 -r requirements.txt --no-build-isolation
+pip install --no-use-pep517 --no-build-isolation -r requirements.txt
 
-echo "✅ Done"
+echo "✅ Build finished successfully!"
