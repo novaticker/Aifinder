@@ -1,16 +1,8 @@
 #!/usr/bin/env bash
 set -e
 
-echo "📦 Installing Python 3.10..."
-sudo apt-get update
-sudo apt-get install -y python3.10 python3.10-venv python3.10-dev
-
-echo "🔧 Setting up virtualenv with Python 3.10..."
-python3.10 -m venv venv
-source venv/bin/activate
-
 echo "⬆️ Upgrading pip, setuptools..."
-pip install --upgrade pip setuptools wheel
+pip install --upgrade pip==23.2.1 setuptools==65.5.0 wheel==0.40.0
 
 echo "📄 Installing requirements..."
 pip install --no-use-pep517 --no-build-isolation -r requirements.txt
