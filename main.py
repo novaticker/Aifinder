@@ -28,8 +28,6 @@ def load_symbols():
     global SYMBOLS_CACHE
     if SYMBOLS_CACHE:
         return SYMBOLS_CACHE
-
-    # 파일이 존재하고 비어있지 않은 경우
     if os.path.exists(SYMBOL_FILE):
         try:
             with open(SYMBOL_FILE, "r") as f:
@@ -39,14 +37,12 @@ def load_symbols():
                     return SYMBOLS_CACHE
         except:
             pass
-
-    # 자동으로 나스닥 전체 심볼 수집
     try:
         print("🔄 나스닥 전체 종목 자동 수집 중...")
         url = "https://old.nasdaq.com/screening/companies-by-name.aspx?exchange=NASDAQ&render=download"
         df = pd.read_csv(url)
         symbols = df["Symbol"].dropna().unique().tolist()
-        SYMBOLS_CACHE = symbols[:1000]  # 무료 제한 고려
+        SYMBOLS_CACHE = symbols[:1000]
         with open(SYMBOL_FILE, "w") as f:
             json.dump(SYMBOLS_CACHE, f, indent=2)
         return SYMBOLS_CACHE
@@ -93,10 +89,22 @@ def is_ai_pick(df):
 
 # 저장
 def save_results(gainers, picks):
-    now = datetime.now(KST).strftime("%H:%M")
+    now = datetime.now(KST)
+    time_str = now.strftime("%H:%M")
+    date_str = now.strftime("%Y-%m-%d")
     phase = get_market_phase()
+
+    for item in gainers:
+        item["time"] = time_str
+        item["phase"] = phase
+        item["date"] = date_str
+    for item in picks:
+        item["time"] = time_str
+        item["phase"] = phase
+        item["date"] = date_str
+
     data = {
-        "time": now,
+        "time": time_str,
         "phase": phase,
         "gainers": gainers[-MAX_ENTRIES:],
         "ai_picks": picks[-MAX_ENTRIES:]
@@ -118,9 +126,7 @@ def scan_symbol(symbol):
             "symbol": symbol,
             "name": name,
             "price": price,
-            "percent": f"{percent:+.2f}%",
-            "time": datetime.now(KST).strftime("%H:%M"),
-            "phase": get_market_phase()
+            "percent": f"{percent:+.2f}%"
         }
         if is_ai_pick(df):
             item["summary"] = f"📈 AI 감지: {symbol}에 급등 신호 포착"
@@ -156,9 +162,9 @@ def run_loop():
             t.join()
 
         save_results(results, picks)
-        time.sleep(60)  # 1분 주기
+        time.sleep(60)
 
-# Render 슬립 방지 루프
+# 슬립 방지
 def keep_alive():
     while True:
         try:
@@ -173,16 +179,22 @@ CORS(app)
 
 @app.route("/data.json")
 def data_json():
+    today = datetime.now(KST).strftime("%Y-%m-%d")
     if os.path.exists(DATA_FILE):
         with open(DATA_FILE, "r", encoding="utf-8") as f:
-            return jsonify(json.load(f))
+            raw = json.load(f)
+            gainers = [g for g in raw.get("gainers", []) if g.get("date") == today]
+            picks = [p for p in raw.get("ai_picks", []) if p.get("date") == today]
+            return jsonify({
+                "gainers": gainers[-MAX_ENTRIES:],
+                "ai_picks": picks[-MAX_ENTRIES:]
+            })
     return jsonify({"gainers": [], "ai_picks": []})
 
 @app.route("/")
 def index():
     return render_template("index.html")
 
-# 시작
 if __name__ == "__main__":
     Thread(target=run_loop, daemon=True).start()
     Thread(target=keep_alive, daemon=True).start()
