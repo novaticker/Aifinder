@@ -12,8 +12,10 @@ from flask import Flask, jsonify, render_template
 from flask_cors import CORS
 from symbols_manager import load_cached_symbols, fetch_and_cache_symbols
 
-KST = pytz.timezone('Asia/Seoul')
+# 설정
+KST = pytz.timezone("Asia/Seoul")
 DATA_FILE = "detected_gainers.json"
+RECOMMEND_FILE = "ai_picks.json"
 MODEL_PATH = "models/model.pkl"
 RENDER_URL = "https://aifinder-0bf3.onrender.com"
 
@@ -75,14 +77,24 @@ def save_detected(results):
         if r.get("ai_pick"):
             if not any(d["symbol"] == r["symbol"] for d in data["ai_picks"]):
                 data["ai_picks"].append(r)
-        if not any(d["symbol"] == r["symbol"] for d in data["gainers"]):
-            data["gainers"].append(r)
+        else:
+            if not any(d["symbol"] == r["symbol"] for d in data["gainers"]):
+                data["gainers"].append(r)
 
     data["ai_picks"] = data["ai_picks"][-100:]
     data["gainers"] = data["gainers"][-100:]
 
     with open(DATA_FILE, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
+
+def save_ai_recommendations(recommendations):
+    now = datetime.now(KST).strftime("%Y-%m-%d %H:%M:%S")
+    for r in recommendations:
+        r["summary"] = f"📌 AI 추천: {r['symbol']}은 추가 상승 여지가 있습니다."
+        r["time"] = now
+
+    with open(RECOMMEND_FILE, "w", encoding="utf-8") as f:
+        json.dump({"ai_picks": recommendations}, f, ensure_ascii=False, indent=2)
 
 def scan_symbol(symbol):
     try:
@@ -100,20 +112,23 @@ def scan_symbol(symbol):
         }
 
         item["ai_pick"] = is_ai_gainer(df)
-        return item
+        return item, df
     except:
-        return None
+        return None, None
 
 def run_detection_loop():
     symbols = load_cached_symbols()
     while True:
         results = []
         threads = []
+        ai_recommend = []
 
         def worker(sym):
-            result = scan_symbol(sym)
+            result, df = scan_symbol(sym)
             if result:
                 results.append(result)
+                if is_ai_gainer(df):
+                    ai_recommend.append(result)
 
         for sym in symbols:
             t = Thread(target=worker, args=(sym,))
@@ -127,7 +142,10 @@ def run_detection_loop():
         if results:
             save_detected(results)
 
-        time.sleep(1)
+        if ai_recommend:
+            save_ai_recommendations(ai_recommend)
+
+        time.sleep(60)
 
 def keep_alive_loop():
     while True:
@@ -157,15 +175,12 @@ def get_data():
             return jsonify(json.load(f))
     return jsonify({"ai_picks": [], "gainers": []})
 
-@app.route("/current_data.json")
-def get_current_phase_data():
-    current_phase = get_market_phase()
-    if os.path.exists(DATA_FILE):
-        with open(DATA_FILE, "r", encoding="utf-8") as f:
-            all_data = json.load(f)
-            filtered = [d for d in all_data["gainers"] if d.get("phase") == current_phase]
-            return jsonify(filtered)
-    return jsonify([])
+@app.route("/ai.json")
+def get_ai_data():
+    if os.path.exists(RECOMMEND_FILE):
+        with open(RECOMMEND_FILE, "r", encoding="utf-8") as f:
+            return jsonify(json.load(f))
+    return jsonify({"ai_picks": []})
 
 @app.route("/update_symbols")
 def update_symbols():
