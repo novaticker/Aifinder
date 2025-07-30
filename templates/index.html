@@ -10,40 +10,37 @@
       font-family: 'Segoe UI', sans-serif;
       background-color: #121212;
       color: #fff;
-      -webkit-font-smoothing: antialiased;
     }
 
     header {
       background-color: #1e1e1e;
-      padding: 1.2rem;
+      padding: 1rem;
       text-align: center;
       font-size: 1.4rem;
       font-weight: bold;
-      color: #ffffff;
       border-bottom: 1px solid #333;
     }
 
-    .tabs {
+    .tabs, .subtabs {
       display: flex;
-      justify-content: space-around;
+      justify-content: center;
+      flex-wrap: wrap;
       background-color: #1e1e1e;
-      padding: 0.6rem 0.2rem;
-      overflow-x: auto;
+      padding: 0.5rem 0;
     }
 
-    .tab {
+    .tab, .subtab {
       background-color: #2c2c2c;
       color: #aaa;
       padding: 0.5rem 1rem;
+      margin: 0.3rem;
       border-radius: 20px;
-      font-size: 1rem;
       cursor: pointer;
-      white-space: nowrap;
+      font-size: 1rem;
       border: none;
-      margin: 0 4px;
     }
 
-    .tab.active {
+    .tab.active, .subtab.active {
       background-color: #4a90e2;
       color: #fff;
     }
@@ -64,7 +61,6 @@
     .symbol {
       font-size: 1.2rem;
       font-weight: bold;
-      color: #ffffff;
       margin-bottom: 0.3rem;
     }
 
@@ -99,12 +95,16 @@
   <header>📊 AI 급등 종목 탐색기</header>
 
   <div class="tabs">
-    <button class="tab active" onclick="setTab('ai')">🔥 AI 추천</button>
-    <button class="tab" onclick="setTab('all')">⚡ 급등 탐지</button>
-    <button class="tab" onclick="setTab('day')">데이장</button>
-    <button class="tab" onclick="setTab('pre')">프리장</button>
-    <button class="tab" onclick="setTab('normal')">본장</button>
-    <button class="tab" onclick="setTab('after')">애프터장</button>
+    <button class="tab active" onclick="switchTab('ai')">🔥 AI 추천</button>
+    <button class="tab" onclick="switchTab('gainers')">⚡ 급등 탐지</button>
+  </div>
+
+  <div class="subtabs" id="phase-tabs" style="display: none;">
+    <button class="subtab active" onclick="setPhase('all')">전체</button>
+    <button class="subtab" onclick="setPhase('day')">데이장</button>
+    <button class="subtab" onclick="setPhase('pre')">프리장</button>
+    <button class="subtab" onclick="setPhase('normal')">본장</button>
+    <button class="subtab" onclick="setPhase('after')">애프터장</button>
   </div>
 
   <div class="container" id="data-container">
@@ -112,43 +112,50 @@
   </div>
 
   <footer>
-    🔁 1초마다 자동 업데이트 | &copy; 2025 NovaTicker AI Finder
+    🔁 1초마다 자동 업데이트 | © 2025 NovaTicker AI Finder
   </footer>
 
   <script>
-    let currentTab = "ai";
-    let allData = { ai_picks: [], gainers: [] };
+    let currentTab = "ai"; // 'ai' or 'gainers'
+    let currentPhase = "all";
+    let allData = {};
 
-    function getPhaseLabel(phase) {
-      if (phase === "pre") return "프리장";
-      if (phase === "normal") return "본장";
-      if (phase === "after") return "애프터장";
-      if (phase === "day") return "데이장";
-      return "기타";
-    }
-
-    function setTab(tab) {
+    function switchTab(tab) {
       currentTab = tab;
       document.querySelectorAll(".tab").forEach(btn => btn.classList.remove("active"));
       document.querySelectorAll(".tab").forEach(btn => {
-        if (
-          (tab === "ai" && btn.textContent.includes("AI")) ||
-          (tab === "all" && btn.textContent.includes("급등")) ||
-          btn.textContent.includes(getPhaseLabel(tab))
-        ) {
+        if (btn.textContent.includes(tab === 'ai' ? 'AI' : '급등')) btn.classList.add("active");
+      });
+
+      document.getElementById("phase-tabs").style.display = (tab === "gainers") ? "flex" : "none";
+      fetchData();
+    }
+
+    function setPhase(phase) {
+      currentPhase = phase;
+      document.querySelectorAll(".subtab").forEach(btn => btn.classList.remove("active"));
+      document.querySelectorAll(".subtab").forEach(btn => {
+        if (btn.textContent.includes(getPhaseLabel(phase)) || (phase === "all" && btn.textContent === "전체")) {
           btn.classList.add("active");
         }
       });
       renderData();
     }
 
+    function getPhaseLabel(phase) {
+      if (phase === "day") return "데이장";
+      if (phase === "pre") return "프리장";
+      if (phase === "normal") return "본장";
+      if (phase === "after") return "애프터장";
+      return "전체";
+    }
+
     async function fetchData() {
       try {
         const res = await fetch("/data.json");
-        const data = await res.json();
-        allData = data;
+        allData = await res.json();
         renderData();
-      } catch (e) {
+      } catch {
         document.getElementById("data-container").innerHTML = "<p style='text-align:center;'>❌ 데이터를 불러올 수 없습니다.</p>";
       }
     }
@@ -157,28 +164,23 @@
       const container = document.getElementById("data-container");
       container.innerHTML = "";
 
-      let display = [];
-
-      if (currentTab === "ai") {
-        display = allData.ai_picks || [];
-      } else if (currentTab === "all") {
-        display = allData.gainers || [];
-      } else {
-        display = (allData.gainers || []).filter(item => item.phase === currentTab);
+      let dataList = currentTab === "ai" ? allData.ai_picks : allData.gainers;
+      if (currentTab === "gainers" && currentPhase !== "all") {
+        dataList = dataList.filter(item => item.phase === currentPhase);
       }
 
-      if (display.length === 0) {
+      if (!dataList || dataList.length === 0) {
         container.innerHTML = "<p style='text-align:center;'>📢 현재 감지된 종목이 없습니다.</p>";
         return;
       }
 
-      display.reverse().forEach(item => {
+      dataList.reverse().forEach(item => {
         const card = document.createElement("div");
         card.className = "card";
         card.innerHTML = `
           <div class="symbol">🧾 ${item.symbol}<span class="percent">${item.percent}</span></div>
           <div class="summary">${item.summary}</div>
-          <div class="meta">🕒 ${item.time} | 📈 ${getPhaseLabel(item.phase)}</div>
+          <div class="meta">🕒 ${item.time || ''} | 📈 ${getPhaseLabel(item.phase || '')}</div>
         `;
         container.appendChild(card);
       });
