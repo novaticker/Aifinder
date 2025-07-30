@@ -98,13 +98,14 @@
 <body>
   <header>📊 AI 급등 종목 탐색기</header>
 
-<div class="tabs">
-  <button class="tab active" onclick="filterData('all')">전체</button>
-  <button class="tab" onclick="filterData('day')">데이장</button>
-  <button class="tab" onclick="filterData('pre')">프리장</button>
-  <button class="tab" onclick="filterData('normal')">본장</button>
-  <button class="tab" onclick="filterData('after')">애프터장</button>
-</div>
+  <div class="tabs">
+    <button class="tab active" onclick="setTab('ai')">🔥 AI 추천</button>
+    <button class="tab" onclick="setTab('all')">⚡ 급등 탐지</button>
+    <button class="tab" onclick="setTab('day')">데이장</button>
+    <button class="tab" onclick="setTab('pre')">프리장</button>
+    <button class="tab" onclick="setTab('normal')">본장</button>
+    <button class="tab" onclick="setTab('after')">애프터장</button>
+  </div>
 
   <div class="container" id="data-container">
     <p>📡 데이터 로딩 중입니다...</p>
@@ -115,7 +116,8 @@
   </footer>
 
   <script>
-    let currentPhase = "all";
+    let currentTab = "ai";
+    let allData = { ai_picks: [], gainers: [] };
 
     function getPhaseLabel(phase) {
       if (phase === "pre") return "프리장";
@@ -125,44 +127,61 @@
       return "기타";
     }
 
-    function filterData(phase) {
-      currentPhase = phase;
+    function setTab(tab) {
+      currentTab = tab;
       document.querySelectorAll(".tab").forEach(btn => btn.classList.remove("active"));
       document.querySelectorAll(".tab").forEach(btn => {
-        if (btn.textContent.includes(getPhaseLabel(phase)) || (phase === "all" && btn.textContent === "전체")) {
+        if (
+          (tab === "ai" && btn.textContent.includes("AI")) ||
+          (tab === "all" && btn.textContent.includes("급등")) ||
+          btn.textContent.includes(getPhaseLabel(tab))
+        ) {
           btn.classList.add("active");
         }
       });
-      fetchData();
+      renderData();
     }
 
     async function fetchData() {
       try {
-        const res = await fetch("/current_data.json");
+        const res = await fetch("/data.json");
         const data = await res.json();
-        const container = document.getElementById("data-container");
-        container.innerHTML = "";
-
-        const filtered = currentPhase === "all" ? data : data.filter(item => item.phase === currentPhase);
-
-        if (filtered.length === 0) {
-          container.innerHTML = "<p style='text-align:center;'>📢 현재 감지된 급등 종목이 없습니다.</p>";
-          return;
-        }
-
-        filtered.reverse().forEach(item => {
-          const card = document.createElement("div");
-          card.className = "card";
-          card.innerHTML = `
-            <div class="symbol">🧾 ${item.symbol}<span class="percent">+${item.percent}</span></div>
-            <div class="summary">${item.summary}</div>
-            <div class="meta">🕒 ${item.time} | 📈 ${getPhaseLabel(item.phase)}</div>
-          `;
-          container.appendChild(card);
-        });
+        allData = data;
+        renderData();
       } catch (e) {
         document.getElementById("data-container").innerHTML = "<p style='text-align:center;'>❌ 데이터를 불러올 수 없습니다.</p>";
       }
+    }
+
+    function renderData() {
+      const container = document.getElementById("data-container");
+      container.innerHTML = "";
+
+      let display = [];
+
+      if (currentTab === "ai") {
+        display = allData.ai_picks || [];
+      } else if (currentTab === "all") {
+        display = allData.gainers || [];
+      } else {
+        display = (allData.gainers || []).filter(item => item.phase === currentTab);
+      }
+
+      if (display.length === 0) {
+        container.innerHTML = "<p style='text-align:center;'>📢 현재 감지된 종목이 없습니다.</p>";
+        return;
+      }
+
+      display.reverse().forEach(item => {
+        const card = document.createElement("div");
+        card.className = "card";
+        card.innerHTML = `
+          <div class="symbol">🧾 ${item.symbol}<span class="percent">${item.percent}</span></div>
+          <div class="summary">${item.summary}</div>
+          <div class="meta">🕒 ${item.time} | 📈 ${getPhaseLabel(item.phase)}</div>
+        `;
+        container.appendChild(card);
+      });
     }
 
     fetchData();
