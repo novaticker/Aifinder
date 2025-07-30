@@ -28,16 +28,17 @@ def load_symbols():
     global SYMBOLS_CACHE
     if SYMBOLS_CACHE:
         return SYMBOLS_CACHE
-    if os.path.exists(SYMBOL_FILE):
-        try:
+    try:
+        if os.path.exists(SYMBOL_FILE):
             with open(SYMBOL_FILE, "r") as f:
                 data = json.load(f)
-                if data:
+                # 비어있으면 자동 수집
+                if isinstance(data, list) and len(data) > 0:
                     SYMBOLS_CACHE = data
                     return SYMBOLS_CACHE
-        except:
-            pass
-    try:
+                else:
+                    print("⚠️ 종목 리스트가 비어있습니다. 자동 수집 시작.")
+        # 자동 수집
         print("🔄 나스닥 전체 종목 자동 수집 중...")
         url = "https://old.nasdaq.com/screening/companies-by-name.aspx?exchange=NASDAQ&render=download"
         df = pd.read_csv(url)
