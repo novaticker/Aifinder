@@ -10,13 +10,14 @@
       font-family: 'Segoe UI', sans-serif;
       background-color: #121212;
       color: #fff;
+      -webkit-font-smoothing: antialiased;
     }
 
     header {
       background-color: #1e1e1e;
-      padding: 1rem;
+      padding: 1.2rem;
       text-align: center;
-      font-size: 1.3rem;
+      font-size: 1.4rem;
       font-weight: bold;
       color: #ffffff;
       border-bottom: 1px solid #333;
@@ -26,18 +27,20 @@
       display: flex;
       justify-content: space-around;
       background-color: #1e1e1e;
-      padding: 0.5rem 0;
-      border-bottom: 1px solid #333;
+      padding: 0.6rem 0.2rem;
+      overflow-x: auto;
     }
 
     .tab {
-      background-color: #2b2b2b;
+      background-color: #2c2c2c;
       color: #aaa;
-      padding: 0.4rem 1rem;
+      padding: 0.5rem 1rem;
       border-radius: 20px;
-      font-size: 0.9rem;
+      font-size: 1rem;
       cursor: pointer;
+      white-space: nowrap;
       border: none;
+      margin: 0 4px;
     }
 
     .tab.active {
@@ -51,35 +54,37 @@
 
     .card {
       background-color: #1e1e1e;
-      border-radius: 10px;
+      border-radius: 12px;
       padding: 1rem;
-      margin-bottom: 0.8rem;
-      box-shadow: 0 1px 3px rgba(0,0,0,0.5);
+      margin-bottom: 1rem;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.5);
       border: 1px solid #2b2b2b;
     }
 
     .symbol {
-      font-size: 1.1rem;
+      font-size: 1.2rem;
       font-weight: bold;
       color: #ffffff;
+      margin-bottom: 0.3rem;
     }
 
     .percent {
-      font-size: 1rem;
+      font-size: 1.1rem;
       font-weight: bold;
       color: #e74c3c;
+      margin-left: 6px;
     }
 
     .summary {
       margin-top: 0.4rem;
-      font-size: 0.95rem;
+      font-size: 0.96rem;
       color: #ccc;
     }
 
     .meta {
       font-size: 0.8rem;
       color: #888;
-      margin-top: 0.3rem;
+      margin-top: 0.5rem;
     }
 
     footer {
@@ -141,7 +146,7 @@
         const filtered = currentPhase === "all" ? data : data.filter(item => item.phase === currentPhase);
 
         if (filtered.length === 0) {
-          container.innerHTML = "<p>📭 현재 감지된 급등 종목이 없습니다.</p>";
+          container.innerHTML = "<p style='text-align:center;'>📢 현재 감지된 급등 종목이 없습니다.</p>";
           return;
         }
 
@@ -149,14 +154,14 @@
           const card = document.createElement("div");
           card.className = "card";
           card.innerHTML = `
-            <div class="symbol">🧾 ${item.symbol} <span class="percent">+${item.percent}</span></div>
+            <div class="symbol">🧾 ${item.symbol}<span class="percent">+${item.percent}</span></div>
             <div class="summary">${item.summary}</div>
             <div class="meta">🕒 ${item.time} | 📈 ${getPhaseLabel(item.phase)}</div>
           `;
           container.appendChild(card);
         });
       } catch (e) {
-        document.getElementById("data-container").innerHTML = "<p>❌ 데이터를 불러올 수 없습니다.</p>";
+        document.getElementById("data-container").innerHTML = "<p style='text-align:center;'>❌ 데이터를 불러올 수 없습니다.</p>";
       }
     }
 
