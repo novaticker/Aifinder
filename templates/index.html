@@ -88,8 +88,14 @@
           const card = document.createElement("div");
           card.className = "stock-card";
           card.innerHTML = `
-            <h2>${item.symbol} <span class="percent">${item.percent}</span></h2>
-            <p class="phase">🕒 ${item.time} | 📈 ${item.phase} 시장</p>
+            <h2>${item.symbol} - ${item.name || "회사명 없음"} <span class="percent">${item.percent}</span></h2>
+            <p class="phase">🕒 ${item.time} | 📈 ${
+              item.phase === 'pre' ? '프리장'
+              : item.phase === 'normal' ? '본장'
+              : item.phase === 'after' ? '애프터장'
+              : item.phase === 'day' ? '데이장'
+              : '알 수 없음'
+            }</p>
             <p>${item.summary}</p>
           `;
           container.appendChild(card);
