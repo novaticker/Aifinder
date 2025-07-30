@@ -3,11 +3,11 @@ flask-cors
 requests
 beautifulsoup4
 pytz
-googletrans==4.0.0rc1
+googletrans==4.0.0-rc1
 gunicorn
 websocket-client
 yfinance
 pandas
-numpy
-joblib
-scikit-learn
+numpy==1.23.5
+joblib==1.2.0
+scikit-learn==1.2.2
