@@ -147,7 +147,6 @@ def get_data():
             return jsonify(json.load(f))
     return jsonify([])
 
-# ✅ 현재 장에 해당하는 종목만 필터링해서 반환
 @app.route("/current_data.json")
 def get_current_phase_data():
     current_phase = get_market_phase()
