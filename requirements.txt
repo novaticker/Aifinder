@@ -12,4 +12,4 @@ numpy==1.23.5
 joblib==1.2.0
 scikit-learn==1.2.2
 setuptools>=65.0.0
-wheel
+wheel>=0.38.0
