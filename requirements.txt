@@ -4,6 +4,10 @@ requests
 beautifulsoup4
 pytz
 googletrans==4.0.0rc1
-numpy
 gunicorn
 websocket-client
+yfinance
+pandas
+numpy
+joblib
+scikit-learn
