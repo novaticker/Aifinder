@@ -1,24 +1,29 @@
 # symbols_manager.py
-import pandas as pd
-import json
 import os
+import json
+import requests
 
-CACHE_FILE = "nasdaq_cache.json"
-CSV_URL = "https://old.nasdaq.com/screening/companies-by-name.aspx?letter=0&exchange=nasdaq&render=download"
+SYMBOLS_FILE = "nasdaq_symbols.json"
 
 def fetch_and_cache_symbols():
+    url = "https://api.nasdaq.com/api/screener/stocks?exchange=nasdaq&download=true"
+    headers = {
+        "User-Agent": "Mozilla/5.0"
+    }
     try:
-        df = pd.read_csv(CSV_URL)
-        symbols = df["Symbol"].dropna().tolist()
-        with open(CACHE_FILE, "w", encoding="utf-8") as f:
+        response = requests.get(url, headers=headers)
+        data = response.json()
+        rows = data["data"]["rows"]
+        symbols = [row["symbol"] for row in rows if row["symbol"].isalpha()]
+        with open(SYMBOLS_FILE, "w", encoding="utf-8") as f:
             json.dump(symbols, f)
         return symbols
-    except:
-        return load_cached_symbols()
+    except Exception as e:
+        print("Error fetching symbols:", e)
+        return []
 
 def load_cached_symbols():
-    if os.path.exists(CACHE_FILE):
-        with open(CACHE_FILE, "r", encoding="utf-8") as f:
+    if os.path.exists(SYMBOLS_FILE):
+        with open(SYMBOLS_FILE, "r", encoding="utf-8") as f:
             return json.load(f)
-    else:
-        return fetch_and_cache_symbols()
+    return fetch_and_cache_symbols()
