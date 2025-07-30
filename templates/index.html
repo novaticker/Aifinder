@@ -7,76 +7,79 @@
   <style>
     body {
       font-family: 'Segoe UI', sans-serif;
+      background: #f4f6f8;
       margin: 0;
       padding: 0;
-      background-color: #f4f6f8;
+      color: #333;
     }
-
     header {
       background-color: #2c3e50;
       color: white;
-      text-align: center;
       padding: 1rem;
+      text-align: center;
       font-size: 1.4rem;
     }
-
     .container {
       padding: 1rem;
       max-width: 800px;
       margin: 0 auto;
     }
-
-    .stock-card {
-      background-color: white;
+    .card {
+      background: white;
+      border-radius: 8px;
       padding: 1rem;
       margin-bottom: 1rem;
-      border-radius: 10px;
-      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
     }
-
-    .stock-card h2 {
-      margin: 0 0 0.5rem;
+    .symbol {
       font-size: 1.2rem;
+      font-weight: bold;
       color: #2c3e50;
     }
-
-    .stock-card p {
-      margin: 0.3rem 0;
-      color: #555;
+    .price {
+      color: #e74c3c;
+      font-weight: bold;
+    }
+    .summary {
+      margin-top: 0.5rem;
       font-size: 0.95rem;
     }
-
-    .percent {
-      font-weight: bold;
-      color: #e74c3c;
-    }
-
-    .phase {
+    .meta {
       font-size: 0.85rem;
-      color: #3498db;
+      color: #555;
+      margin-top: 0.5rem;
     }
-
     footer {
       text-align: center;
-      padding: 1rem;
-      color: #888;
       font-size: 0.8rem;
+      padding: 1rem;
+      color: #aaa;
     }
   </style>
 </head>
 <body>
   <header>📊 AI 급등 종목 탐색기</header>
-  <div class="container" id="results">
-    <p>⏳ 데이터를 불러오는 중입니다...</p>
+  <div class="container" id="data-container">
+    <p>📡 데이터 로딩 중입니다...</p>
   </div>
-  <footer>&copy; 2025 NovaTicker AI Finder</footer>
+  <footer>
+    ⏱ 30초마다 자동 업데이트 | &copy; 2025 NovaTicker AI Finder
+  </footer>
 
   <script>
-    async function loadData() {
+    function getPhaseLabel(phase) {
+      if (phase === "pre") return "프리장";
+      if (phase === "normal") return "본장";
+      if (phase === "after") return "애프터장";
+      if (phase === "day") return "데이장";
+      return "알 수 없음";
+    }
+
+    async function fetchData() {
       try {
         const res = await fetch("/data.json");
         const data = await res.json();
-        const container = document.getElementById("results");
+        const container = document.getElementById("data-container");
         container.innerHTML = "";
 
         if (data.length === 0) {
@@ -86,27 +89,21 @@
 
         data.reverse().forEach(item => {
           const card = document.createElement("div");
-          card.className = "stock-card";
+          card.className = "card";
           card.innerHTML = `
-            <h2>${item.symbol} - ${item.name || "회사명 없음"} <span class="percent">${item.percent}</span></h2>
-            <p class="phase">🕒 ${item.time} | 📈 ${
-              item.phase === 'pre' ? '프리장'
-              : item.phase === 'normal' ? '본장'
-              : item.phase === 'after' ? '애프터장'
-              : item.phase === 'day' ? '데이장'
-              : '알 수 없음'
-            }</p>
-            <p>${item.summary}</p>
+            <div class="symbol">🧾 ${item.symbol} | <span class="price">${item.percent}</span></div>
+            <div class="summary">${item.summary}</div>
+            <div class="meta">🕒 ${item.time} | 📈 ${getPhaseLabel(item.phase)}</div>
           `;
           container.appendChild(card);
         });
-      } catch (err) {
-        document.getElementById("results").innerHTML = "<p>❌ 데이터를 불러올 수 없습니다.</p>";
+      } catch (e) {
+        document.getElementById("data-container").innerHTML = "<p>❌ 데이터를 불러올 수 없습니다.</p>";
       }
     }
 
-    loadData();
-    setInterval(loadData, 10000); // 10초마다 자동 업데이트
+    fetchData();
+    setInterval(fetchData, 30000); // 30초마다 새로고침
   </script>
 </body>
 </html>
