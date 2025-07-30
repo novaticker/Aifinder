@@ -25,7 +25,6 @@ model = joblib.load(MODEL_PATH)
 # 심볼 캐시
 SYMBOLS_CACHE = []
 
-# 심볼 자동 수집 및 필터링
 def load_symbols():
     global SYMBOLS_CACHE
     if SYMBOLS_CACHE:
@@ -42,6 +41,7 @@ def load_symbols():
         url = "https://old.nasdaq.com/screening/companies-by-name.aspx?exchange=NASDAQ&render=download"
         df = pd.read_csv(url)
         symbols = df["Symbol"].dropna().unique().tolist()
+
         filtered = []
         blocklist = ["AAPL", "MSFT", "GOOG", "AMZN", "NVDA", "META", "TSLA"]
 
@@ -53,6 +53,7 @@ def load_symbols():
                 price = info.get("regularMarketPrice", 0)
                 cap = info.get("marketCap", 0)
                 vol = info.get("averageVolume", 0)
+
                 if price and 0.5 <= price <= 500 and cap < 5e9 and vol >= 100000:
                     hist = yf.download(symbol, period="10d", interval="1d", progress=False)
                     if len(hist) >= 2:
@@ -73,7 +74,6 @@ def load_symbols():
         print(f"❌ 종목 수집 실패: {e}")
         return []
 
-# 장 구분
 def get_market_phase():
     now = datetime.now(KST)
     t = now.hour * 60 + now.minute
@@ -86,7 +86,6 @@ def get_market_phase():
     else:
         return "after"
 
-# 피처 추출
 def extract_features(df):
     df = df.copy()
     df["returns"] = df["Close"].pct_change()
@@ -100,7 +99,6 @@ def extract_features(df):
         latest["volatility"]
     ]]
 
-# AI 판단
 def is_ai_pick(df):
     if len(df) < 15:
         return False
@@ -110,7 +108,6 @@ def is_ai_pick(df):
     except:
         return False
 
-# 결과 저장
 def save_results(gainers, picks):
     now = datetime.now(KST)
     time_str = now.strftime("%H:%M")
@@ -131,7 +128,6 @@ def save_results(gainers, picks):
     with open(DATA_FILE, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
 
-# 종목 분석
 def scan_symbol(symbol):
     try:
         df = yf.download(symbol, period="1d", interval="1m", progress=False)
@@ -156,7 +152,6 @@ def scan_symbol(symbol):
     except:
         return None
 
-# AI 탐색 루프
 def run_loop():
     symbols = load_symbols()
     while True:
@@ -181,7 +176,6 @@ def run_loop():
         save_results(results, picks)
         time.sleep(60)
 
-# 슬립 방지
 def keep_alive():
     while True:
         try:
@@ -190,7 +184,7 @@ def keep_alive():
             pass
         time.sleep(280)
 
-# 웹서버
+# Flask 웹서버
 app = Flask(__name__, template_folder="templates")
 CORS(app)
 
