@@ -11,7 +11,6 @@ from threading import Thread
 from flask import Flask, jsonify, render_template
 from flask_cors import CORS
 
-# 기본 설정
 KST = pytz.timezone('Asia/Seoul')
 MODEL_PATH = "models/model.pkl"
 SYMBOL_FILE = "symbols_nasdaq.json"
@@ -19,7 +18,6 @@ DATA_FILE = "ai_detected.json"
 RENDER_URL = "https://aifinder-0bf3.onrender.com"
 MAX_ENTRIES = 100
 
-# 모델 로딩
 model = joblib.load(MODEL_PATH)
 SYMBOLS_CACHE = []
 
@@ -77,9 +75,9 @@ def get_market_phase():
     t = now.hour * 60 + now.minute
     if 540 <= t < 1010:
         return "day"
-    elif 1020 <= t <= 1350:
+    elif 1020 <= t < 1350:
         return "pre"
-    elif t > 1350 or t < 300:
+    elif 1350 <= t or t < 300:
         return "normal"
     else:
         return "after"
@@ -125,6 +123,15 @@ def save_results(gainers, picks):
     }
     with open(DATA_FILE, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
+
+def reset_data_daily():
+    while True:
+        now = datetime.now(KST)
+        if now.strftime("%H:%M") == "05:10":
+            print("🧹 데이터 초기화")
+            with open(DATA_FILE, "w", encoding="utf-8") as f:
+                json.dump({"gainers": [], "ai_picks": []}, f)
+        time.sleep(60)
 
 def scan_symbol(symbol):
     try:
@@ -182,7 +189,6 @@ def keep_alive():
             pass
         time.sleep(280)
 
-# Flask 웹서버
 app = Flask(__name__, template_folder="templates")
 CORS(app)
 
@@ -207,4 +213,5 @@ def index():
 if __name__ == "__main__":
     Thread(target=run_loop, daemon=True).start()
     Thread(target=keep_alive, daemon=True).start()
+    Thread(target=reset_data_daily, daemon=True).start()
     app.run(host="0.0.0.0", port=5000)
