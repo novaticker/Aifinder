@@ -116,7 +116,7 @@
   </footer>
 
   <script>
-    let currentTab = "ai"; // 'ai' or 'gainers'
+    let currentTab = "ai";
     let currentPhase = "all";
     let allData = {};
 
@@ -174,13 +174,13 @@
         return;
       }
 
-      dataList.reverse().forEach(item => {
+      dataList.slice().reverse().forEach(item => {
         const card = document.createElement("div");
         card.className = "card";
         card.innerHTML = `
-          <div class="symbol">🧾 ${item.symbol}<span class="percent">${item.percent}</span></div>
-          <div class="summary">${item.summary}</div>
-          <div class="meta">🕒 ${item.time || ''} | 📈 ${getPhaseLabel(item.phase || '')}</div>
+          <div class="symbol">🧾 ${item.symbol}<span class="percent">${item.percent || ""}</span></div>
+          <div class="summary">${item.summary || "AI 분석 결과: 급등 가능성 있음"}</div>
+          <div class="meta">🕒 ${item.time || ""} | 📈 ${getPhaseLabel(item.phase || "")}</div>
         `;
         container.appendChild(card);
       });
