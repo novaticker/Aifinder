@@ -21,8 +21,6 @@ MAX_ENTRIES = 100
 
 # 모델 로딩
 model = joblib.load(MODEL_PATH)
-
-# 심볼 캐시
 SYMBOLS_CACHE = []
 
 def load_symbols():
