@@ -219,6 +219,10 @@ def train_model():
 def index():
     return render_template("index.html")
 
+@app.route("/ping")
+def ping():
+    return "pong"
+
 if __name__ == "__main__":
     Thread(target=run_loop, daemon=True).start()
     Thread(target=keep_alive, daemon=True).start()
