@@ -6,6 +6,7 @@ import yfinance as yf
 import pytz
 import requests
 import pandas as pd
+import subprocess
 from datetime import datetime
 from threading import Thread
 from flask import Flask, jsonify, render_template
@@ -205,6 +206,14 @@ def data_json():
                 "ai_picks": picks[-MAX_ENTRIES:]
             })
     return jsonify({"gainers": [], "ai_picks": []})
+
+@app.route("/train_model")
+def train_model():
+    try:
+        result = subprocess.run(["python3", "trainer.py"], capture_output=True, text=True)
+        return f"<pre>{result.stdout}</pre>"
+    except Exception as e:
+        return f"Training failed: {e}"
 
 @app.route("/")
 def index():
