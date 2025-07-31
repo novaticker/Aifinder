@@ -1,3 +1,6 @@
+setuptools>=42
+wheel
+
 flask
 flask-cors
 requests
@@ -11,5 +14,3 @@ pandas
 numpy==1.23.5
 joblib==1.2.0
 scikit-learn==1.2.2
-setuptools
-wheel
