@@ -1,5 +1,6 @@
-setuptools>=42
+setuptools>=58.0.0
 wheel
+pip>=21.3
 
 flask
 flask-cors
