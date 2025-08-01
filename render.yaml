@@ -3,7 +3,7 @@ services:
     name: ai-finder
     env: python
     plan: free
-    buildCommand: pip install -r requirements.txt
+    buildCommand: pip install --upgrade pip setuptools wheel && pip install -r requirements.txt
     startCommand: gunicorn main:app --timeout 120 --bind 0.0.0.0:$PORT
     envVars:
       - key: PYTHONUNBUFFERED
