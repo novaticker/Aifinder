@@ -193,6 +193,12 @@ def keep_alive():
 app = Flask(__name__, template_folder="templates")
 CORS(app)
 
+@app.before_first_request
+def start_background_tasks():
+    Thread(target=run_loop, daemon=True).start()
+    Thread(target=keep_alive, daemon=True).start()
+    Thread(target=reset_data_daily, daemon=True).start()
+
 @app.route("/data.json")
 def data_json():
     today = datetime.now(KST).strftime("%Y-%m-%d")
@@ -230,7 +236,4 @@ def ping():
     return "pong"
 
 if __name__ == "__main__":
-    Thread(target=run_loop, daemon=True).start()
-    Thread(target=keep_alive, daemon=True).start()
-    Thread(target=reset_data_daily, daemon=True).start()
     app.run(host="0.0.0.0", port=5000)
