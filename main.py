@@ -198,13 +198,19 @@ def data_json():
     today = datetime.now(KST).strftime("%Y-%m-%d")
     if os.path.exists(DATA_FILE):
         with open(DATA_FILE, "r", encoding="utf-8") as f:
-            raw = json.load(f)
-            gainers = [x for x in raw.get("gainers", []) if x.get("date") == today]
-            picks = [x for x in raw.get("ai_picks", []) if x.get("date") == today]
-            return jsonify({
-                "gainers": gainers[-MAX_ENTRIES:],
-                "ai_picks": picks[-MAX_ENTRIES:]
-            })
+            try:
+                raw = json.load(f)
+                if isinstance(raw, dict):
+                    gainers = [x for x in raw.get("gainers", []) if x.get("date") == today]
+                    picks = [x for x in raw.get("ai_picks", []) if x.get("date") == today]
+                    return jsonify({
+                        "gainers": gainers[-MAX_ENTRIES:],
+                        "ai_picks": picks[-MAX_ENTRIES:]
+                    })
+                else:
+                    print("❗ JSON 구조 오류: dict 아님")
+            except Exception as e:
+                print("❌ JSON 파싱 오류:", e)
     return jsonify({"gainers": [], "ai_picks": []})
 
 @app.route("/train_model")
