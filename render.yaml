@@ -1,16 +1,9 @@
 services:
   - type: web
-    name: ai-finder
+    name: aifinder
     env: python
-    plan: free
-    buildCommand: pip install --upgrade pip setuptools wheel && pip install -r requirements.txt
-    startCommand: gunicorn main:app --timeout 120 --bind 0.0.0.0:$PORT
-    envVars:
-      - key: PYTHONUNBUFFERED
-        value: "1"
-      - key: FLASK_ENV
-        value: production
-      - key: TZ
-        value: Asia/Seoul
+    buildCommand: |
+      pip install --upgrade pip setuptools wheel
+      pip install --no-cache-dir --upgrade -r requirements.txt
+    startCommand: gunicorn main:app
     pythonVersion: 3.10.13
-    autoDeploy: true
