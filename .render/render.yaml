@@ -3,7 +3,10 @@ services:
     name: ai-finder
     env: python
     plan: free
-    buildCommand: ""
+    buildCommand: |
+      echo "python-3.10.12" > runtime.txt
+      pip install --upgrade pip setuptools wheel
+      pip install -r requirements.txt
     startCommand: gunicorn main:app --timeout 120 --bind 0.0.0.0:$PORT
     envVars:
       - key: PYTHONUNBUFFERED
@@ -14,7 +17,3 @@ services:
         value: Asia/Seoul
       - key: GUNICORN_CMD_ARGS
         value: "--timeout 120"
-      - key: PORT
-        value: "10000"
-    pythonVersion: 3.10
-    autoDeploy: true
