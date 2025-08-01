@@ -1,2 +1,6 @@
-build:
-  command: .render/build.sh
+services:
+  - type: web
+    name: aifinder
+    env: python
+    buildCommand: "./build.sh"
+    startCommand: "gunicorn main:app"
