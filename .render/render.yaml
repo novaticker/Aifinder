@@ -4,10 +4,9 @@ services:
     env: python
     plan: free
     buildCommand: |
-      echo "python-3.10.12" > runtime.txt
       pip install --upgrade pip setuptools wheel
       pip install -r requirements.txt
-    startCommand: gunicorn main:app --timeout 120 --bind 0.0.0.0:$PORT
+    startCommand: gunicorn main:app --timeout 120
     envVars:
       - key: PYTHONUNBUFFERED
         value: "1"
