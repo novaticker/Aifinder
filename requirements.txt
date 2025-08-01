@@ -1,3 +1,4 @@
+--no-use-pep517
 setuptools==65.5.1
 wheel
 pip==21.3.1
