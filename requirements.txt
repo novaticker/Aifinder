@@ -1,20 +1,17 @@
-services:
-  - type: web
-    name: ai-finder
-    env: python
-    plan: free
-    buildCommand: ""
-    startCommand: gunicorn main:app --timeout 120 --bind 0.0.0.0:$PORT
-    envVars:
-      - key: PYTHONUNBUFFERED
-        value: "1"
-      - key: FLASK_ENV
-        value: production
-      - key: TZ
-        value: Asia/Seoul
-      - key: GUNICORN_CMD_ARGS
-        value: "--timeout 120"
-      - key: PORT
-        value: "10000"
-    pythonVersion: 3.10
-    autoDeploy: true
+setuptools==65.5.1
+wheel
+pip==21.3.1
+
+flask
+flask-cors
+requests
+beautifulsoup4
+pytz
+gunicorn
+websocket-client
+yfinance
+pandas
+numpy==1.23.5
+joblib==1.2.0
+scikit-learn==1.2.2
+deep-translator==1.11.4
