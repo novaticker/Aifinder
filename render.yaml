@@ -2,6 +2,7 @@ services:
   - type: web
     name: aifinder
     env: python
+    pythonVersion: 3.10
     buildCommand: |
       pip install --upgrade pip setuptools wheel
       pip install --no-build-isolation -r requirements.txt
