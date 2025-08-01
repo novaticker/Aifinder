@@ -7,4 +7,4 @@ services:
       pip install --no-cache-dir --upgrade -r requirements.txt
     startCommand: gunicorn main:app
     build:
-  pythonVersion: 3.11.6
+      pythonVersion: 3.11.6
